@@ -87,7 +87,7 @@ Port | port number | This config file parameter is mandatory.
 User | user name | This config file parameter is mandatory.
 Database | database name | This is only required for SQL Server and PostgreSQL, where it is mandatory.
 Service | service name | This is only required for Oracle, where it is mandatory.
-Schema | schema ame | This config file parameter is mandatory.
+Schema | schema name | This config file parameter is mandatory.
 Table | single table or comma separated list of tables including placeholder characters (%) | This config file parameter is mandatory.
 
 ### Example
