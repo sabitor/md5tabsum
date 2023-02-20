@@ -3,10 +3,21 @@ package main
 import (
 	"flag"
 	"fmt"
+	"md5tabsum/dbms"
 	"os"
 	"path/filepath"
 	"sync"
 )
+
+// Instance validates the existence of a specific DBMS instance and if found, returns the instance name.
+// If the DBMS instance wasn't found, the program will terminate.
+func instance(dbmsInstance string) dbms.Database {
+	if v, ok := gDbms[dbmsInstance]; ok {
+		return v
+	}
+	msg := "key '" + dbmsInstance + "' doesn't exist"
+	panic(msg)
+}
 
 // parseCmdArgs parses for command line arguments.
 // If nothing was specified, corresponding defaults are going to be used.
