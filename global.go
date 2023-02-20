@@ -1,6 +1,7 @@
 package main
 
 import (
+	"md5tabsum/dbms"
 	"sync"
 
 	"github.com/syrinsecurity/gologger"
@@ -39,7 +40,7 @@ var (
 	// Dbms contains the DBMS instance configuration for any active config file section
 	// mDbms[Key -> DBMS instance name : Value -> DBMS instance config]
 	// Example: mDbms["exasol.instance1":exasolDB DBMS interface]
-	gDbms = make(map[string]dbms)
+	gDbms = make(map[string]dbms.Database)
 
 	// -- Password handling --
 	// password store file
