@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"md5tabsum/constant"
 	"os"
 	"strings"
 
@@ -19,13 +20,13 @@ import (
 func writePasswordStore(flags int) error {
 	f, err := os.OpenFile(gPasswordStore, flags, 0600)
 	if err != nil {
-		writeLogBasic(STDOUT, err.Error())
+		writeLogBasic(constant.STDOUT, err.Error())
 		return err
 	}
 	defer f.Close()
 
 	for k, v := range gInstancePassword {
-		record := encryptAES(CIPHERKEY, k+":"+v) + "\n"
+		record := encryptAES(constant.CIPHERKEY, k+":"+v) + "\n"
 		f.Write([]byte(record))
 	}
 	return err
@@ -42,7 +43,7 @@ func readPasswordStore() error {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		record := scanner.Text() // get the line string
-		instance, password, _ := strings.Cut(decryptAES(CIPHERKEY, record), ":")
+		instance, password, _ := strings.Cut(decryptAES(constant.CIPHERKEY, record), ":")
 		gInstancePassword[instance] = password
 	}
 
@@ -74,8 +75,8 @@ func deleteInstance(instance *string) error {
 		return err
 	}
 	if _, isValid := gInstancePassword[*instance]; !isValid {
-		writeLogBasic(STDOUT, "The specified instance doesn't exist in the password store.")
-		os.Exit(ERROR)
+		writeLogBasic(constant.STDOUT, "The specified instance doesn't exist in the password store.")
+		os.Exit(constant.ERROR)
 	}
 	delete(gInstancePassword, *instance)
 
@@ -94,8 +95,8 @@ func addInstance(instance *string) error {
 		return err
 	}
 	if _, isValid := gInstancePassword[*instance]; isValid {
-		writeLogBasic(STDOUT, "The specified instance already exists in the password store.")
-		os.Exit(ERROR)
+		writeLogBasic(constant.STDOUT, "The specified instance already exists in the password store.")
+		os.Exit(constant.ERROR)
 	}
 
 	var password []byte
@@ -119,8 +120,8 @@ func updateInstance(instance *string) error {
 		return err
 	}
 	if _, isValid := gInstancePassword[*instance]; !isValid {
-		writeLogBasic(STDOUT, "The specified instance doesn't exist in the password store.")
-		os.Exit(ERROR)
+		writeLogBasic(constant.STDOUT, "The specified instance doesn't exist in the password store.")
+		os.Exit(constant.ERROR)
 	}
 
 	var password []byte
@@ -145,7 +146,7 @@ func showInstance() error {
 	}
 
 	for k := range gInstancePassword {
-		writeLogBasic(STDOUT, k)
+		writeLogBasic(constant.STDOUT, k)
 	}
 
 	return err
@@ -160,8 +161,8 @@ func encodeBase64(b []byte) string {
 func decodeBase64(s string) []byte {
 	data, err := base64.StdEncoding.DecodeString(s)
 	if err != nil {
-		writeLogBasic(STDOUT, "Something went wrong while decoding data.")
-		os.Exit(ERROR)
+		writeLogBasic(constant.STDOUT, "Something went wrong while decoding data.")
+		os.Exit(constant.ERROR)
 	}
 
 	return data
@@ -171,18 +172,18 @@ func decodeBase64(s string) []byte {
 func encryptAES(key, plainText string) string {
 	cph, err := aes.NewCipher([]byte(key))
 	if err != nil {
-		writeLogBasic(STDOUT, "Something went wrong while creating a new cipher block.")
-		os.Exit(ERROR)
+		writeLogBasic(constant.STDOUT, "Something went wrong while creating a new cipher block.")
+		os.Exit(constant.ERROR)
 	}
 	gcm, err := cipher.NewGCM(cph)
 	if err != nil {
-		writeLogBasic(STDOUT, "Something went wrong while returning the 128-bit block.")
-		os.Exit(ERROR)
+		writeLogBasic(constant.STDOUT, "Something went wrong while returning the 128-bit block.")
+		os.Exit(constant.ERROR)
 	}
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		writeLogBasic(STDOUT, "Something went wrong while populating the nonce.")
-		os.Exit(ERROR)
+		writeLogBasic(constant.STDOUT, "Something went wrong while populating the nonce.")
+		os.Exit(constant.ERROR)
 	}
 
 	return encodeBase64(gcm.Seal(nonce, nonce, []byte(plainText), nil))
@@ -192,25 +193,25 @@ func encryptAES(key, plainText string) string {
 func decryptAES(key, encryptedText string) string {
 	cph, err := aes.NewCipher([]byte(key))
 	if err != nil {
-		writeLogBasic(STDOUT, "Something went wrong while creating a new cipher block.")
-		os.Exit(ERROR)
+		writeLogBasic(constant.STDOUT, "Something went wrong while creating a new cipher block.")
+		os.Exit(constant.ERROR)
 	}
 	gcm, err := cipher.NewGCM(cph)
 	if err != nil {
-		writeLogBasic(STDOUT, "Something went wrong while returning the 128-bit block.")
-		os.Exit(ERROR)
+		writeLogBasic(constant.STDOUT, "Something went wrong while returning the 128-bit block.")
+		os.Exit(constant.ERROR)
 	}
 	nonceSize := gcm.NonceSize()
 	if len(encryptedText) < nonceSize {
-		writeLogBasic(STDOUT, "Something went wrong while determining the nonce size.")
-		os.Exit(ERROR)
+		writeLogBasic(constant.STDOUT, "Something went wrong while determining the nonce size.")
+		os.Exit(constant.ERROR)
 	}
 	cipherText := decodeBase64(encryptedText)
 	nonce, encryptedMessage := cipherText[:nonceSize], cipherText[nonceSize:]
 	plaintext, err := gcm.Open(nil, nonce, encryptedMessage, nil)
 	if err != nil {
-		writeLogBasic(STDOUT, "Something went wrong while authenticating and decrypting the ciphertext.")
-		os.Exit(ERROR)
+		writeLogBasic(constant.STDOUT, "Something went wrong while authenticating and decrypting the ciphertext.")
+		os.Exit(constant.ERROR)
 	}
 
 	return string(plaintext)
