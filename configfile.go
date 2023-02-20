@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"md5tabsum/dbms"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -18,13 +19,13 @@ func setInstanceConfig(cfgSection string, v *viper.Viper) {
 	cfgSectionParts := strings.Split(cfgSection, ".")                                                                                  // e.g. exasol.instance1
 	switch cfgSectionParts[0] {
 	case "exasol":
-		gDbms[cfgSection] = &exasolDB{
-			cfg: config{host: v.GetString("host"),
-				port:     port,
-				user:     v.GetString("user"),
-				schema:   v.GetString("schema"),
-				table:    allTables,
-				instance: cfgSection},
+		gDbms[cfgSection] = &dbms.ExasolDB{
+			Cfg: dbms.Config{Host: v.GetString("host"),
+				Port:     port,
+				User:     v.GetString("user"),
+				Schema:   v.GetString("schema"),
+				Table:    allTables,
+				Instance: cfgSection},
 		}
 		gInstanceLogLevel[cfgSection] = logLevel
 	case "oracle":
