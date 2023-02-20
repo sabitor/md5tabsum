@@ -9,41 +9,41 @@ import (
 	"github.com/exasol/exasol-driver-go"
 )
 
-type exasolDB struct {
-	cfg config
+type ExasolDB struct {
+	Cfg Config
 }
 
-func (e *exasolDB) Instance() *string {
-	return &e.cfg.instance
+func (e *ExasolDB) Instance() *string {
+	return &e.Cfg.Instance
 }
 
-func (e *exasolDB) Host() string {
-	return e.cfg.host
+func (e *ExasolDB) Host() string {
+	return e.Cfg.Host
 }
 
-func (e *exasolDB) Port() int {
-	return e.cfg.port
+func (e *ExasolDB) Port() int {
+	return e.Cfg.Port
 }
 
-func (e *exasolDB) User() string {
-	return e.cfg.user
+func (e *ExasolDB) User() string {
+	return e.Cfg.User
 }
 
-func (e *exasolDB) Schema() string {
-	return e.cfg.schema
+func (e *ExasolDB) Schema() string {
+	return e.Cfg.Schema
 }
 
-func (e *exasolDB) Table() []string {
-	return e.cfg.table
+func (e *ExasolDB) Table() []string {
+	return e.Cfg.Table
 }
 
-func (e *exasolDB) ObjId(obj *string) *string {
-	objId := e.cfg.instance + "." + *obj
+func (e *ExasolDB) ObjId(obj *string) *string {
+	objId := e.Cfg.Instance + "." + *obj
 	return &objId
 }
 
 // ----------------------------------------------------------------------------
-func (e *exasolDB) openDB() (*sql.DB, error) {
+func (e *ExasolDB) openDB() (*sql.DB, error) {
 	password := gInstancePassword[*e.Instance()]
 	tableFilter := strings.Join(e.Table(), ", ")
 	writeLog(1, e.Instance(), "Host: "+e.Host(), "Port: "+strconv.Itoa(e.Port()), "User: "+e.User(), "Schema: "+e.Schema(), "Table: "+tableFilter)
@@ -56,11 +56,11 @@ func (e *exasolDB) openDB() (*sql.DB, error) {
 	return db, err
 }
 
-func (e *exasolDB) closeDB(db *sql.DB) error {
+func (e *ExasolDB) closeDB(db *sql.DB) error {
 	return db.Close()
 }
 
-func (e *exasolDB) queryDB(db *sql.DB) error {
+func (e *ExasolDB) queryDB(db *sql.DB) error {
 	var rowSet *sql.Rows
 	var tableNames []string
 	var checkSum string
