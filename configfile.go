@@ -2,7 +2,9 @@ package main
 
 import (
 	"errors"
+	"md5tabsum/constant"
 	"md5tabsum/dbms"
+	"md5tabsum/log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -15,8 +17,8 @@ import (
 func setInstanceConfig(cfgSection string, v *viper.Viper) {
 	logLevel, _ := strconv.Atoi(v.GetString("loglevel"))
 	port, _ := strconv.Atoi(v.GetString("port"))
-	allTables := strings.Split(strings.ReplaceAll(strings.ReplaceAll(v.GetString("table"), " ", EMPTYSTRING), "\\", EMPTYSTRING), ",") // replace " " and "\"" by ""
-	cfgSectionParts := strings.Split(cfgSection, ".")                                                                                  // e.g. exasol.instance1
+	allTables := strings.Split(strings.ReplaceAll(strings.ReplaceAll(v.GetString("table"), " ", constant.EMPTYSTRING), "\\", constant.EMPTYSTRING), ",") // replace " " and "\"" by ""
+	cfgSectionParts := strings.Split(cfgSection, ".")                                                                                                    // e.g. exasol.instance1
 	switch cfgSectionParts[0] {
 	case "exasol":
 		gDbms[cfgSection] = &dbms.ExasolDB{
@@ -29,46 +31,46 @@ func setInstanceConfig(cfgSection string, v *viper.Viper) {
 		}
 		gInstanceLogLevel[cfgSection] = logLevel
 	case "oracle":
-		gDbms[cfgSection] = &oracleDB{
-			cfg: config{host: v.GetString("host"),
-				port:     port,
-				user:     v.GetString("user"),
-				schema:   v.GetString("schema"),
-				table:    allTables,
-				instance: cfgSection},
-			service: v.GetString("service"),
+		gDbms[cfgSection] = &dbms.OracleDB{
+			Cfg: dbms.Config{Host: v.GetString("host"),
+				Port:     port,
+				User:     v.GetString("user"),
+				Schema:   v.GetString("schema"),
+				Table:    allTables,
+				Instance: cfgSection},
+			Srv: v.GetString("service"),
 		}
 		gInstanceLogLevel[cfgSection] = logLevel
 	case "mysql":
-		gDbms[cfgSection] = &mysqlDB{
-			cfg: config{host: v.GetString("host"),
-				port:     port,
-				user:     v.GetString("user"),
-				schema:   v.GetString("schema"),
-				table:    allTables,
-				instance: cfgSection},
+		gDbms[cfgSection] = &dbms.MysqlDB{
+			Cfg: dbms.Config{Host: v.GetString("host"),
+				Port:     port,
+				User:     v.GetString("user"),
+				Schema:   v.GetString("schema"),
+				Table:    allTables,
+				Instance: cfgSection},
 		}
 		gInstanceLogLevel[cfgSection] = logLevel
 	case "postgresql":
-		gDbms[cfgSection] = &postgresqlDB{
-			cfg: config{host: v.GetString("host"),
-				port:     port,
-				user:     v.GetString("user"),
-				schema:   v.GetString("schema"),
-				table:    allTables,
-				instance: cfgSection},
-			database: v.GetString("database"),
+		gDbms[cfgSection] = &dbms.PostgresqlDB{
+			Cfg: dbms.Config{Host: v.GetString("host"),
+				Port:     port,
+				User:     v.GetString("user"),
+				Schema:   v.GetString("schema"),
+				Table:    allTables,
+				Instance: cfgSection},
+			Db: v.GetString("database"),
 		}
 		gInstanceLogLevel[cfgSection] = logLevel
 	case "mssql":
-		gDbms[cfgSection] = &mssqlDB{
-			cfg: config{host: v.GetString("host"),
-				port:     port,
-				user:     v.GetString("user"),
-				schema:   v.GetString("schema"),
-				table:    allTables,
-				instance: cfgSection},
-			database: v.GetString("database"),
+		gDbms[cfgSection] = &dbms.MssqlDB{
+			Cfg: dbms.Config{Host: v.GetString("host"),
+				Port:     port,
+				User:     v.GetString("user"),
+				Schema:   v.GetString("schema"),
+				Table:    allTables,
+				Instance: cfgSection},
+			Db: v.GetString("database"),
 		}
 		gInstanceLogLevel[cfgSection] = logLevel
 	// CHECK: Add support for other DBMS
@@ -102,17 +104,17 @@ func setupEnv(cfg *string) error {
 
 	// read common config parameters
 	logFile := viper.GetString("Logfile")
-	if logFile == EMPTYSTRING {
+	if logFile == constant.EMPTYSTRING {
 		return errors.New("the Logfile parameter isn't configured")
 	} else {
 		err := createFileCheck(&logFile)
 		if err != nil {
 			return err
 		}
-		LogHandler(logFile)
+		log.LogHandler(logFile)
 	}
 	passwordStore := viper.GetString("Passwordstore")
-	if passwordStore == EMPTYSTRING {
+	if passwordStore == constant.EMPTYSTRING {
 		return errors.New("the Passwordstore parameter isn't configured")
 	} else {
 		err := createFileCheck(&passwordStore)
@@ -125,7 +127,7 @@ func setupEnv(cfg *string) error {
 	// read DBMS instance config parameters
 	for _, v := range gSupportedDbms {
 		cfgFirstLevelKey := viper.GetStringMapString(v) // all cfg instances (instance1, instance2, ...) are assigned to a DBMS name (exasol, oracle, ...)
-		dbmsInstance := EMPTYSTRING
+		dbmsInstance := constant.EMPTYSTRING
 		for k := range cfgFirstLevelKey {
 			dbmsInstance = v + "." + k // e.g. exasol.instance1
 			if cfgInstance := viper.Sub(dbmsInstance); cfgInstance != nil && cfgInstance.GetString("active") == "1" {
