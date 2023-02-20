@@ -4,8 +4,8 @@ import (
 	"database/sql"
 )
 
-// DBMS interface
-type dbms interface {
+// Database interface
+type Database interface {
 	// openDB implements the DBMS specific open function.
 	openDB() (*sql.DB, error)
 	// closeDB implements the DBMS specific close function.
@@ -15,21 +15,11 @@ type dbms interface {
 }
 
 // Common config file structure
-type config struct {
-	instance string
-	host     string
-	port     int
-	user     string
-	schema   string
-	table    []string
-}
-
-// Dbms validates the existence of a specific DBMS instance and if found, returns the instance name.
-// If the DBMS instance wasn't found, the program will terminate.
-func Dbms(dbmsInstance string) dbms {
-	if v, ok := gDbms[dbmsInstance]; ok {
-		return v
-	}
-	msg := "key '" + dbmsInstance + "' doesn't exist"
-	panic(msg)
+type Config struct {
+	Instance string
+	Host     string
+	Port     int
+	User     string
+	Schema   string
+	Table    []string
 }
