@@ -7,11 +7,11 @@ import (
 // Database interface
 type Database interface {
 	// openDB implements the DBMS specific open function.
-	openDB() (*sql.DB, error)
+	OpenDB(string) (*sql.DB, error)
 	// closeDB implements the DBMS specific close function.
-	closeDB(*sql.DB) error
+	CloseDB(*sql.DB) error
 	// queryDB implements any DBMS specific function using a handle returned from openDB() to work with the underlying database.
-	queryDB(*sql.DB) error
+	QueryDB(*sql.DB) error
 }
 
 // Common config file structure

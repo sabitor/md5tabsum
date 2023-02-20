@@ -3,6 +3,7 @@ package dbms
 import (
 	"database/sql"
 	"fmt"
+	"md5tabsum/constant"
 	"strconv"
 	"strings"
 
@@ -43,24 +44,23 @@ func (e *ExasolDB) ObjId(obj *string) *string {
 }
 
 // ----------------------------------------------------------------------------
-func (e *ExasolDB) openDB() (*sql.DB, error) {
-	password := gInstancePassword[*e.Instance()]
+func (e *ExasolDB) OpenDB(password string) (*sql.DB, error) {
 	tableFilter := strings.Join(e.Table(), ", ")
 	writeLog(1, e.Instance(), "Host: "+e.Host(), "Port: "+strconv.Itoa(e.Port()), "User: "+e.User(), "Schema: "+e.Schema(), "Table: "+tableFilter)
 	db, err := sql.Open("exasol", exasol.NewConfig(e.User(), password).Port(e.Port()).Host(e.Host()).ValidateServerCertificate(false).String())
 	if err != nil {
 		writeLog(1, e.Instance(), err.Error())
-		writeLogBasic(STDOUT, err.Error())
+		writeLogBasic(constant.STDOUT, err.Error())
 		return db, err
 	}
 	return db, err
 }
 
-func (e *ExasolDB) closeDB(db *sql.DB) error {
+func (e *ExasolDB) CloseDB(db *sql.DB) error {
 	return db.Close()
 }
 
-func (e *ExasolDB) queryDB(db *sql.DB) error {
+func (e *ExasolDB) QueryDB(db *sql.DB) error {
 	var rowSet *sql.Rows
 	var tableNames []string
 	var checkSum string
@@ -70,40 +70,40 @@ func (e *ExasolDB) queryDB(db *sql.DB) error {
 	_, err = db.Exec("alter session set NLS_NUMERIC_CHARACTERS = '.,'")
 	if err != nil {
 		writeLog(1, e.Instance(), err.Error())
-		writeLogBasic(STDOUT, err.Error())
+		writeLogBasic(constant.STDOUT, err.Error())
 		return err
 	}
 
 	// PREPARE: filter for all existing DB tables based on the configured table parameter (the tables parameter can include placeholders, e.g. %)
-	logTableNamesFalse := EMPTYSTRING
+	logTableNamesFalse := constant.EMPTYSTRING
 	for _, table := range e.Table() {
 		sqlPreparedStmt := "select TABLE_NAME from EXA_ALL_TABLES where table_schema=? and table_name like ?"
 		rowSet, err = db.Query(sqlPreparedStmt, strings.ToUpper(e.Schema()), strings.ToUpper(table))
 		if err != nil {
 			writeLog(1, e.Instance(), err.Error())
-			writeLogBasic(STDOUT, err.Error())
+			writeLogBasic(constant.STDOUT, err.Error())
 			return err
 		}
-		foundTable := EMPTYSTRING
+		foundTable := constant.EMPTYSTRING
 		for rowSet.Next() {
 			// table exists in DB schema
 			err := rowSet.Scan(&foundTable)
 			if err != nil {
 				writeLog(1, e.Instance(), err.Error())
-				writeLogBasic(STDOUT, err.Error())
+				writeLogBasic(constant.STDOUT, err.Error())
 				return err
 			}
 			tableNames = append(tableNames, foundTable)
 		}
-		if foundTable == EMPTYSTRING {
+		if foundTable == constant.EMPTYSTRING {
 			// table doesn't exist in the DB schema
 			buildLogMessage(&logTableNamesFalse, &table)
 		}
 	}
-	if logTableNamesFalse != EMPTYSTRING {
+	if logTableNamesFalse != constant.EMPTYSTRING {
 		message := "Table(s) for filter '" + logTableNamesFalse + "' not found."
 		writeLog(1, e.Instance(), message)
-		writeLogBasic(STDOUT, message)
+		writeLogBasic(constant.STDOUT, message)
 	}
 
 	// EXECUTE: compile MD5 for all found tables
@@ -112,23 +112,23 @@ func (e *ExasolDB) queryDB(db *sql.DB) error {
 		rowSet, err = db.Query(sqlPreparedStmt, strings.ToUpper(e.Schema()), strings.ToUpper(table))
 		if err != nil {
 			writeLog(1, e.ObjId(&table), err.Error())
-			writeLogBasic(STDOUT, err.Error())
+			writeLogBasic(constant.STDOUT, err.Error())
 			return err
 		}
 
 		max := 2000000
-		columnNames, column, columnType := EMPTYSTRING, EMPTYSTRING, EMPTYSTRING
+		columnNames, column, columnType := constant.EMPTYSTRING, constant.EMPTYSTRING, constant.EMPTYSTRING
 		// logging
-		logColumns, logColumnTypes := EMPTYSTRING, EMPTYSTRING
+		logColumns, logColumnTypes := constant.EMPTYSTRING, constant.EMPTYSTRING
 
 		for rowSet.Next() {
-			if columnNames != EMPTYSTRING {
+			if columnNames != constant.EMPTYSTRING {
 				columnNames += " || "
 			}
 			err := rowSet.Scan(&column, &columnType)
 			if err != nil {
 				writeLog(1, e.ObjId(&table), err.Error())
-				writeLogBasic(STDOUT, err.Error())
+				writeLogBasic(constant.STDOUT, err.Error())
 				return err
 			}
 
@@ -156,14 +156,14 @@ func (e *ExasolDB) queryDB(db *sql.DB) error {
 		err = db.QueryRow(sqlQueryStmt).Scan(&checkSum)
 		if err != nil {
 			writeLog(1, e.ObjId(&table), err.Error())
-			writeLogBasic(STDOUT, err.Error())
+			writeLogBasic(constant.STDOUT, err.Error())
 			return err
 		}
 
 		// write checksum to STDOUT and to the log file
 		result := fmt.Sprintf("%s:%s", *e.ObjId(&table), checkSum)
 		writeLog(1, e.ObjId(&table), result)
-		writeLogBasic(STDOUT, result)
+		writeLogBasic(constant.STDOUT, result)
 	}
 
 	return err

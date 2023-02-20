@@ -3,74 +3,74 @@ package dbms
 import (
 	"database/sql"
 	"fmt"
+	"md5tabsum/constant"
 	"strconv"
 	"strings"
 
 	"github.com/sijms/go-ora/v2"
 )
 
-type oracleDB struct {
-	cfg     config
-	service string
+type OracleDB struct {
+	Cfg Config
+	Srv string
 }
 
-func (o *oracleDB) Instance() *string {
-	return &o.cfg.instance
+func (o *OracleDB) Instance() *string {
+	return &o.Cfg.Instance
 }
 
-func (o *oracleDB) Host() string {
-	return o.cfg.host
+func (o *OracleDB) Host() string {
+	return o.Cfg.Host
 }
 
-func (o *oracleDB) Port() int {
-	return o.cfg.port
+func (o *OracleDB) Port() int {
+	return o.Cfg.Port
 }
 
-func (o *oracleDB) User() string {
-	return o.cfg.user
+func (o *OracleDB) User() string {
+	return o.Cfg.User
 }
 
-func (o *oracleDB) Schema() string {
-	return o.cfg.schema
+func (o *OracleDB) Schema() string {
+	return o.Cfg.Schema
 }
 
-func (o *oracleDB) Table() []string {
-	return o.cfg.table
+func (o *OracleDB) Table() []string {
+	return o.Cfg.Table
 }
 
-func (o *oracleDB) Service() string {
-	return o.service
+func (o *OracleDB) Service() string {
+	return o.Srv
 }
 
-func (o *oracleDB) ObjId(obj *string) *string {
-	objId := o.cfg.instance + "." + *obj
+func (o *OracleDB) ObjId(obj *string) *string {
+	objId := o.Cfg.Instance + "." + *obj
 	return &objId
 }
 
 // ----------------------------------------------------------------------------
-func (o *oracleDB) openDB() (*sql.DB, error) {
+func (o *OracleDB) OpenDB(password string) (*sql.DB, error) {
 	/* urlOptions := map[string]string{
 		"trace file": "trace.log",
 	} */
 
-	password := gInstancePassword[*o.Instance()]
 	tableFilter := strings.Join(o.Table(), ", ")
 	writeLog(1, o.Instance(), "Host: "+o.Host(), "Port: "+strconv.Itoa(o.Port()), "Service: "+o.Service(), "User: "+o.User(), "Schema: "+o.Schema(), "Table: "+tableFilter)
 	dsn := go_ora.BuildUrl(o.Host(), o.Port(), o.Service(), o.User(), password /* urlOptions */, nil)
 	db, err := sql.Open("oracle", dsn)
 	if err != nil {
 		writeLog(1, o.Instance(), err.Error())
-		writeLogBasic(STDOUT, err.Error())
+		writeLogBasic(constant.STDOUT, err.Error())
 		return db, err
 	}
 	return db, err
 }
 
-func (o *oracleDB) closeDB(db *sql.DB) error {
+func (o *OracleDB) CloseDB(db *sql.DB) error {
 	return db.Close()
 }
 
-func (o *oracleDB) queryDB(db *sql.DB) error {
+func (o *OracleDB) QueryDB(db *sql.DB) error {
 	var rowSet *sql.Rows
 	var tableNames []string
 	var checkSum string
@@ -80,41 +80,41 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 	_, err = db.Exec("alter session set NLS_NUMERIC_CHARACTERS = '.,'")
 	if err != nil {
 		writeLog(1, o.Instance(), err.Error())
-		writeLogBasic(STDOUT, err.Error())
+		writeLogBasic(constant.STDOUT, err.Error())
 		return err
 	}
 
 	// PREPARE: filter for all existing DB tables based on the configured table parameter (the tables parameter can include placeholders, e.g. %)
-	logTableNamesFalse := EMPTYSTRING
+	logTableNamesFalse := constant.EMPTYSTRING
 	for _, table := range o.Table() {
 		// Hint: Prepared statements are currently not supported by go-ora. Thus, the command will be build by using the real filter values instead of using place holders.
 		sqlPreparedStmt := "select TABLE_NAME from ALL_TABLES where OWNER='" + strings.ToUpper(o.Schema()) + "' and TABLE_NAME like '" + strings.ToUpper(table) + "'"
 		rowSet, err = db.Query(sqlPreparedStmt)
 		if err != nil {
 			writeLog(1, o.Instance(), err.Error())
-			writeLogBasic(STDOUT, err.Error())
+			writeLogBasic(constant.STDOUT, err.Error())
 			return err
 		}
-		foundTable := EMPTYSTRING
+		foundTable := constant.EMPTYSTRING
 		for rowSet.Next() {
 			// table exists in DB schema
 			err := rowSet.Scan(&foundTable)
 			if err != nil {
 				writeLog(1, o.Instance(), err.Error())
-				writeLogBasic(STDOUT, err.Error())
+				writeLogBasic(constant.STDOUT, err.Error())
 				return err
 			}
 			tableNames = append(tableNames, foundTable)
 		}
-		if foundTable == EMPTYSTRING {
+		if foundTable == constant.EMPTYSTRING {
 			// table doesn't exist in the DB schema
 			buildLogMessage(&logTableNamesFalse, &table)
 		}
 	}
-	if logTableNamesFalse != EMPTYSTRING {
+	if logTableNamesFalse != constant.EMPTYSTRING {
 		message := "Table(s) for filter '" + logTableNamesFalse + "' not found."
 		writeLog(1, o.Instance(), message)
-		writeLogBasic(STDOUT, message)
+		writeLogBasic(constant.STDOUT, message)
 	}
 
 	// EXECUTE: compile MD5 for all found tables
@@ -123,23 +123,23 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 		rowSet, err = db.Query(sqlPreparedStmt)
 		if err != nil {
 			writeLog(1, o.ObjId(&table), err.Error())
-			writeLogBasic(STDOUT, err.Error())
+			writeLogBasic(constant.STDOUT, err.Error())
 			return err
 		}
 
 		max := 4000
-		columnNames, column, columnType := EMPTYSTRING, EMPTYSTRING, EMPTYSTRING
+		columnNames, column, columnType := constant.EMPTYSTRING, constant.EMPTYSTRING, constant.EMPTYSTRING
 		// logging
-		logColumns, logColumnTypes := EMPTYSTRING, EMPTYSTRING
+		logColumns, logColumnTypes := constant.EMPTYSTRING, constant.EMPTYSTRING
 
 		for rowSet.Next() {
-			if columnNames != EMPTYSTRING {
+			if columnNames != constant.EMPTYSTRING {
 				columnNames += " || "
 			}
 			err := rowSet.Scan(&column, &columnType)
 			if err != nil {
 				writeLog(1, o.ObjId(&table), err.Error())
-				writeLogBasic(STDOUT, err.Error())
+				writeLogBasic(constant.STDOUT, err.Error())
 				return err
 			}
 
@@ -172,14 +172,14 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 		err = db.QueryRow(sqlQueryStmt).Scan(&checkSum)
 		if err != nil {
 			writeLog(1, o.ObjId(&table), err.Error())
-			writeLogBasic(STDOUT, err.Error())
+			writeLogBasic(constant.STDOUT, err.Error())
 			return err
 		}
 
 		// write checksum to STDOUT and to the log file
 		result := fmt.Sprintf("%s:%s", *o.ObjId(&table), checkSum)
 		writeLog(1, o.ObjId(&table), result)
-		writeLogBasic(STDOUT, result)
+		writeLogBasic(constant.STDOUT, result)
 	}
 
 	return err

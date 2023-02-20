@@ -3,105 +3,105 @@ package dbms
 import (
 	"database/sql"
 	"fmt"
+	"md5tabsum/constant"
 	"strconv"
 	"strings"
 
 	_ "github.com/lib/pq"
 )
 
-type postgresqlDB struct {
-	cfg      config
-	database string
+type PostgresqlDB struct {
+	Cfg Config
+	Db  string
 }
 
-func (p *postgresqlDB) Instance() *string {
-	return &p.cfg.instance
+func (p *PostgresqlDB) Instance() *string {
+	return &p.Cfg.Instance
 }
 
-func (p *postgresqlDB) Host() string {
-	return p.cfg.host
+func (p *PostgresqlDB) Host() string {
+	return p.Cfg.Host
 }
 
-func (p *postgresqlDB) Port() int {
-	return p.cfg.port
+func (p *PostgresqlDB) Port() int {
+	return p.Cfg.Port
 }
 
-func (p *postgresqlDB) User() string {
-	return p.cfg.user
+func (p *PostgresqlDB) User() string {
+	return p.Cfg.User
 }
 
-func (p *postgresqlDB) Schema() string {
-	return p.cfg.schema
+func (p *PostgresqlDB) Schema() string {
+	return p.Cfg.Schema
 }
 
-func (p *postgresqlDB) Table() []string {
-	return p.cfg.table
+func (p *PostgresqlDB) Table() []string {
+	return p.Cfg.Table
 }
 
-func (p *postgresqlDB) Database() string {
-	return p.database
+func (p *PostgresqlDB) Database() string {
+	return p.Db
 }
 
-func (p *postgresqlDB) ObjId(obj *string) *string {
-	objId := p.cfg.instance + "." + *obj
+func (p *PostgresqlDB) ObjId(obj *string) *string {
+	objId := p.Cfg.Instance + "." + *obj
 	return &objId
 }
 
 // ----------------------------------------------------------------------------
-func (p *postgresqlDB) openDB() (*sql.DB, error) {
-	password := gInstancePassword[*p.Instance()]
+func (p *PostgresqlDB) OpenDB(password string) (*sql.DB, error) {
 	tableFilter := strings.Join(p.Table(), ", ")
 	writeLog(1, p.Instance(), "Host: "+p.Host(), "Port: "+strconv.Itoa(p.Port()), "Database: "+p.Database(), "User: "+p.User(), "Schema: "+p.Schema(), "Table: "+tableFilter)
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", p.Host(), p.Port(), p.User(), password, p.Database())
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		writeLog(1, p.Instance(), err.Error())
-		writeLogBasic(STDOUT, err.Error())
+		writeLogBasic(constant.STDOUT, err.Error())
 		return db, err
 	}
 	return db, err
 }
 
-func (p *postgresqlDB) closeDB(db *sql.DB) error {
+func (p *PostgresqlDB) CloseDB(db *sql.DB) error {
 	return db.Close()
 }
 
-func (p *postgresqlDB) queryDB(db *sql.DB) error {
+func (p *PostgresqlDB) QueryDB(db *sql.DB) error {
 	var rowSet *sql.Rows
 	var tableNames []string
 	var checkSum string
 	var err error
 
 	// PREPARE: filter for all existing DB tables based on the configured table parameter (the tables parameter can include placeholders, e.g. %)
-	logTableNamesFalse := EMPTYSTRING
+	logTableNamesFalse := constant.EMPTYSTRING
 	for _, table := range p.Table() {
 		sqlPreparedStmt := "select TABLE_NAME from information_schema.tables where table_schema=$1 and table_name like $2"
 		rowSet, err = db.Query(sqlPreparedStmt, p.Schema(), table)
 		if err != nil {
 			writeLog(1, p.Instance(), err.Error())
-			writeLogBasic(STDOUT, err.Error())
+			writeLogBasic(constant.STDOUT, err.Error())
 			return err
 		}
-		foundTable := EMPTYSTRING
+		foundTable := constant.EMPTYSTRING
 		for rowSet.Next() {
 			// table exists in DB schema
 			err := rowSet.Scan(&foundTable)
 			if err != nil {
 				writeLog(1, p.Instance(), err.Error())
-				writeLogBasic(STDOUT, err.Error())
+				writeLogBasic(constant.STDOUT, err.Error())
 				return err
 			}
 			tableNames = append(tableNames, foundTable)
 		}
-		if foundTable == EMPTYSTRING {
+		if foundTable == constant.EMPTYSTRING {
 			// table doesn't exist in the DB schema
 			buildLogMessage(&logTableNamesFalse, &table)
 		}
 	}
-	if logTableNamesFalse != EMPTYSTRING {
+	if logTableNamesFalse != constant.EMPTYSTRING {
 		message := "Table(s) for filter '" + logTableNamesFalse + "' not found."
 		writeLog(1, p.Instance(), message)
-		writeLogBasic(STDOUT, message)
+		writeLogBasic(constant.STDOUT, message)
 	}
 
 	// EXECUTE: compile MD5 for all found tables
@@ -110,22 +110,22 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 		rowSet, err = db.Query(sqlPreparedStmt, p.Schema(), table)
 		if err != nil {
 			writeLog(1, p.ObjId(&table), err.Error())
-			writeLogBasic(STDOUT, err.Error())
+			writeLogBasic(constant.STDOUT, err.Error())
 			return err
 		}
 
-		columnNames, column, columnType := EMPTYSTRING, EMPTYSTRING, EMPTYSTRING
+		columnNames, column, columnType := constant.EMPTYSTRING, constant.EMPTYSTRING, constant.EMPTYSTRING
 		// logging
-		logColumns, logColumnTypes := EMPTYSTRING, EMPTYSTRING
+		logColumns, logColumnTypes := constant.EMPTYSTRING, constant.EMPTYSTRING
 
 		for rowSet.Next() {
-			if columnNames != EMPTYSTRING {
+			if columnNames != constant.EMPTYSTRING {
 				columnNames += " || "
 			}
 			err := rowSet.Scan(&column, &columnType)
 			if err != nil {
 				writeLog(1, p.ObjId(&table), err.Error())
-				writeLogBasic(STDOUT, err.Error())
+				writeLogBasic(constant.STDOUT, err.Error())
 				return err
 			}
 
@@ -155,14 +155,14 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 		err = db.QueryRow(sqlQueryStmt).Scan(&checkSum)
 		if err != nil {
 			writeLog(1, p.ObjId(&table), err.Error())
-			writeLogBasic(STDOUT, err.Error())
+			writeLogBasic(constant.STDOUT, err.Error())
 			return err
 		}
 
 		// write checksum to STDOUT and to the log file
 		result := fmt.Sprintf("%s:%s", *p.ObjId(&table), checkSum)
 		writeLog(1, p.ObjId(&table), result)
-		writeLogBasic(STDOUT, result)
+		writeLogBasic(constant.STDOUT, result)
 	}
 
 	return err

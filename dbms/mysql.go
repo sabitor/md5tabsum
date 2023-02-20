@@ -3,101 +3,101 @@ package dbms
 import (
 	"database/sql"
 	"fmt"
+	"md5tabsum/constant"
 	"strconv"
 	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
 )
 
-type mysqlDB struct {
-	cfg config
+type MysqlDB struct {
+	Cfg Config
 }
 
-func (m *mysqlDB) Instance() *string {
-	return &m.cfg.instance
+func (m *MysqlDB) Instance() *string {
+	return &m.Cfg.Instance
 }
 
-func (m *mysqlDB) Host() string {
-	return m.cfg.host
+func (m *MysqlDB) Host() string {
+	return m.Cfg.Host
 }
 
-func (m *mysqlDB) Port() int {
-	return m.cfg.port
+func (m *MysqlDB) Port() int {
+	return m.Cfg.Port
 }
 
-func (m *mysqlDB) User() string {
-	return m.cfg.user
+func (m *MysqlDB) User() string {
+	return m.Cfg.User
 }
 
-func (m *mysqlDB) Schema() string {
-	return m.cfg.schema
+func (m *MysqlDB) Schema() string {
+	return m.Cfg.Schema
 }
 
-func (m *mysqlDB) Table() []string {
-	return m.cfg.table
+func (m *MysqlDB) Table() []string {
+	return m.Cfg.Table
 }
 
-func (m *mysqlDB) ObjId(obj *string) *string {
-	objId := m.cfg.instance + "." + *obj
+func (m *MysqlDB) ObjId(obj *string) *string {
+	objId := m.Cfg.Instance + "." + *obj
 	return &objId
 }
 
 // ----------------------------------------------------------------------------
-func (m *mysqlDB) openDB() (*sql.DB, error) {
+func (m *MysqlDB) OpenDB(password string) (*sql.DB, error) {
 	sqlMode := "ANSI_QUOTES"
-	password := gInstancePassword[*m.Instance()]
 	tableFilter := strings.Join(m.Table(), ", ")
 	writeLog(1, m.Instance(), "Host: "+m.Host(), "Port: "+strconv.Itoa(m.Port()), "User: "+m.User(), "Schema: "+m.Schema(), "Table: "+tableFilter)
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?sql_mode=%s", m.User(), password, m.Host(), m.Port(), m.Schema(), sqlMode)
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		writeLog(1, m.Instance(), err.Error())
-		writeLogBasic(STDOUT, err.Error())
+		writeLogBasic(constant.STDOUT, err.Error())
 		return db, err
 	}
 	return db, err
 }
 
-func (m *mysqlDB) closeDB(db *sql.DB) error {
+func (m *MysqlDB) CloseDB(db *sql.DB) error {
 	return db.Close()
 }
 
-func (m *mysqlDB) queryDB(db *sql.DB) error {
+func (m *MysqlDB) QueryDB(db *sql.DB) error {
 	var rowSet *sql.Rows
 	var tableNames []string
 	var checkSum string
 	var err error
 
 	// PREPARE: filter for all existing DB tables based on the configured table parameter (the tables parameter can include placeholders, e.g. %)
-	logTableNamesFalse := EMPTYSTRING
+	logTableNamesFalse := constant.EMPTYSTRING
 	for _, table := range m.Table() {
 		sqlPreparedStmt := "select TABLE_NAME from INFORMATION_SCHEMA.TABLES where table_schema=? and table_name like ?"
 		rowSet, err = db.Query(sqlPreparedStmt, m.Schema(), table)
 		if err != nil {
 			writeLog(1, m.Instance(), err.Error())
-			writeLogBasic(STDOUT, err.Error())
+			writeLogBasic(constant.STDOUT, err.Error())
 			return err
 		}
-		foundTable := EMPTYSTRING
+		foundTable := constant.EMPTYSTRING
 		for rowSet.Next() {
 			// table exists in DB schema
 			err := rowSet.Scan(&foundTable)
 			if err != nil {
 				writeLog(1, m.Instance(), err.Error())
-				writeLogBasic(STDOUT, err.Error())
+				writeLogBasic(constant.STDOUT, err.Error())
 				return err
 			}
 			tableNames = append(tableNames, foundTable)
 		}
-		if foundTable == EMPTYSTRING {
+		if foundTable == constant.EMPTYSTRING {
 			// table doesn't exist in the DB schema
 			buildLogMessage(&logTableNamesFalse, &table)
 		}
 	}
-	if logTableNamesFalse != EMPTYSTRING {
+	if logTableNamesFalse != constant.EMPTYSTRING {
 		message := "Table(s) for filter '" + logTableNamesFalse + "' not found."
 		writeLog(1, m.Instance(), message)
-		writeLogBasic(STDOUT, message)
+		writeLogBasic(constant.STDOUT, message)
 	}
 
 	// EXECUTE: compile MD5 for all found tables
@@ -106,18 +106,18 @@ func (m *mysqlDB) queryDB(db *sql.DB) error {
 		rowSet, err = db.Query(sqlPreparedStmt, m.Schema(), table)
 		if err != nil {
 			writeLog(1, m.ObjId(&table), err.Error())
-			writeLogBasic(STDOUT, err.Error())
+			writeLogBasic(constant.STDOUT, err.Error())
 			return err
 		}
 
 		max := 65535
-		columnNames, column, columnType := EMPTYSTRING, EMPTYSTRING, EMPTYSTRING
+		columnNames, column, columnType := constant.EMPTYSTRING, constant.EMPTYSTRING, constant.EMPTYSTRING
 		numColumns := 0 // required for building the correct 'concat' string
 		// logging
-		logColumns, logColumnTypes := EMPTYSTRING, EMPTYSTRING
+		logColumns, logColumnTypes := constant.EMPTYSTRING, constant.EMPTYSTRING
 
 		for rowSet.Next() {
-			if columnNames != EMPTYSTRING {
+			if columnNames != constant.EMPTYSTRING {
 				columnNames += ", "
 			} else {
 				columnNames += "concat("
@@ -125,7 +125,7 @@ func (m *mysqlDB) queryDB(db *sql.DB) error {
 			err := rowSet.Scan(&column, &columnType)
 			if err != nil {
 				writeLog(1, m.ObjId(&table), err.Error())
-				writeLogBasic(STDOUT, err.Error())
+				writeLogBasic(constant.STDOUT, err.Error())
 				return err
 			}
 
@@ -160,14 +160,14 @@ func (m *mysqlDB) queryDB(db *sql.DB) error {
 		err = db.QueryRow(sqlQueryStmt).Scan(&checkSum)
 		if err != nil {
 			writeLog(1, m.ObjId(&table), err.Error())
-			writeLogBasic(STDOUT, err.Error())
+			writeLogBasic(constant.STDOUT, err.Error())
 			return err
 		}
 
 		// write checksum to STDOUT and to the log file
 		result := fmt.Sprintf("%s:%s", *m.ObjId(&table), checkSum)
 		writeLog(1, m.ObjId(&table), result)
-		writeLogBasic(STDOUT, result)
+		writeLogBasic(constant.STDOUT, result)
 	}
 
 	return err
