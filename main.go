@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"md5tabsum/constant"
 	"md5tabsum/dbms"
+	"md5tabsum/log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -17,14 +18,14 @@ var (
 	gInstancePassword = make(map[string]string)
 )
 
-// Instance validates the existence of a given DBMS instance in the instance configuration.
+// instanceName validates the existence of a given DBMS instance name in the instaneToConfig map.
 // If the DBMS instance was found, the instance name is returned.
 // If the DBMS instance wasn't found, the program will terminate.
-func instance(dbmsInstance string) dbms.Database {
-	if v, ok := gDbms[dbmsInstance]; ok {
+func instanceName(instance string) dbms.Database {
+	if v, ok := instanceToConfig[instance]; ok {
 		return v
 	}
-	msg := "key '" + dbmsInstance + "' doesn't exist"
+	msg := "key '" + instance + "' doesn't exist"
 	panic(msg)
 }
 
@@ -42,21 +43,21 @@ func parseCmdArgs() (*string, *bool, *string, *string) {
 
 // compileMD5CheckSum encapsulates the workflow how to compile the MD5 checksum of a database table.
 // The steps are: 1) open a database connection, 2) execution of SQL commands, 3) close database connection.
-func compileMD5CheckSum(dbmsInstance string, wg *sync.WaitGroup, c chan<- int) {
+func compileMD5CheckSum(instance string, wg *sync.WaitGroup, c chan<- int) {
 	defer wg.Done()
 
 	// open database connection
 
-	password := gInstancePassword[dbmsInstance]
-	db, err := instance(dbmsInstance).OpenDB(password)
+	password := gInstancePassword[instance]
+	db, err := instanceName(instance).OpenDB(password)
 	if err != nil {
 		c <- constant.ERROR
 		return
 	}
 	// close database connection
-	defer instance(dbmsInstance).CloseDB(db)
+	defer instanceName(instance).CloseDB(db)
 	// query database
-	err = instance(dbmsInstance).QueryDB(db)
+	err = instanceName(instance).QueryDB(db)
 	if err != nil {
 		c <- constant.ERROR
 		return
@@ -81,29 +82,29 @@ func main() {
 
 	// read config file
 	if err := setupEnv(cfg); err != nil {
-		writeLogBasic(constant.STDOUT, err.Error())
+		log.WriteLogBasic(constant.STDOUT, err.Error())
 		os.Exit(constant.ERROR)
 	}
 
 	if *passwordstore == constant.EMPTYSTRING {
 		// -- start workflow --
-		startLogService()
-		defer stopLogService()
+		log.StartLogService()
+		defer log.StopLogService()
 		cfgPath, _ := filepath.Abs(*cfg)
-		message := fmt.Sprintf("%s [config file: %s]", getLogTimestamp(), cfgPath)
-		writeLogBasic(constant.LOGFILE, message)
-		message = fmt.Sprintf("%s [password store: %s]", getLogTimestamp(), gPasswordStore)
-		writeLogBasic(constant.LOGFILE, message)
+		message := fmt.Sprintf("%s [config file: %s]", log.LogTimestamp(), cfgPath)
+		log.WriteLogBasic(constant.LOGFILE, message)
+		message = fmt.Sprintf("%s [password store: %s]", log.LogTimestamp(), gPasswordStore)
+		log.WriteLogBasic(constant.LOGFILE, message)
 
 		// read instance passwords from password store
 		if err := readPasswordStore(); err != nil {
-			writeLogBasic(constant.BOTH, err.Error())
+			log.WriteLogBasic(constant.BOTH, err.Error())
 			os.Exit(constant.ERROR)
 		}
 
 		// compile MD5 table checksum for all configured DBMS instances
-		c := make(chan int, len(gDbms))
-		for k := range gDbms {
+		c := make(chan int, len(instanceToConfig))
+		for k := range instanceToConfig {
 			wg.Add(1)
 			go compileMD5CheckSum(k, &wg, c)
 		}
@@ -115,8 +116,8 @@ func main() {
 			rc |= i
 		}
 
-		message = fmt.Sprintf("%s [rc=%d]", getLogTimestamp(), rc)
-		writeLogBasic(constant.LOGFILE, message)
+		message = fmt.Sprintf("%s [rc=%d]", log.LogTimestamp(), rc)
+		log.WriteLogBasic(constant.LOGFILE, message)
 	} else {
 		// -- password store management --
 		if *passwordstore == "create" {
@@ -125,7 +126,7 @@ func main() {
 			}
 		} else if *passwordstore == "add" {
 			if *instance == constant.EMPTYSTRING {
-				writeLogBasic(constant.STDOUT, "To add an instance and its password in the password store the instance command option '-i <instance name>' is required.")
+				log.WriteLogBasic(constant.STDOUT, "To add an instance and its password in the password store the instance command option '-i <instance name>' is required.")
 				os.Exit(constant.ERROR)
 			}
 			if err := addInstance(instance); err != nil {
@@ -133,7 +134,7 @@ func main() {
 			}
 		} else if *passwordstore == "delete" {
 			if *instance == constant.EMPTYSTRING {
-				writeLogBasic(constant.STDOUT, "To delete an instance and its password from the password store the instance command option '-i <instance name>' is required.")
+				log.WriteLogBasic(constant.STDOUT, "To delete an instance and its password from the password store the instance command option '-i <instance name>' is required.")
 				os.Exit(constant.ERROR)
 			}
 			if err := deleteInstance(instance); err != nil {
@@ -141,7 +142,7 @@ func main() {
 			}
 		} else if *passwordstore == "update" {
 			if *instance == constant.EMPTYSTRING {
-				writeLogBasic(constant.STDOUT, "To update an instance password in the password store the instance command option '-i <instance name>' is required.")
+				log.WriteLogBasic(constant.STDOUT, "To update an instance password in the password store the instance command option '-i <instance name>' is required.")
 				os.Exit(constant.ERROR)
 			}
 			if err := updateInstance(instance); err != nil {

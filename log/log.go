@@ -12,13 +12,15 @@ import (
 )
 
 var (
-	// global mutex to lock/unlock the log
-	gMtx sync.Mutex
+	// mutex to lock/unlock the log
+	mtx sync.Mutex
 	// log handle
 	log *gologger.CustomLogger
+	// map to store instances and their assigned log level
+	InstanceToLogLevel = make(map[string]int)
 )
 
-// setupLogHandler declares a global log handle
+// LogHandler declares a global log handle
 func LogHandler(logName string) {
 	log = gologger.NewCustomLogger(logName, constant.EMPTYSTRING, 0)
 }
@@ -29,27 +31,27 @@ func inst(objId string) string {
 	return fmt.Sprintf("%s.%s", element[0], element[1])
 }
 
-// getLogTimestamp returns the current time in a defined format.
-func getLogTimestamp() string {
+// LogTimestamp returns the current time in a defined format.
+func LogTimestamp() string {
 	ts := time.Now()
 	return fmt.Sprintf("%d-%02d-%02d %02d:%02d:%02d.%03d", ts.Year(), ts.Month(), ts.Day(), ts.Hour(), ts.Minute(), ts.Second(), int(math.Round(float64(ts.Nanosecond()/1000000))))
 }
 
-// startLogService starts the log service.
-func startLogService() {
+// StartLogService starts the log service.
+func StartLogService() {
 	go log.Service()
 	log.Write("-------------------------------------------------------------------------------")
 	header := fmt.Sprintf("[%s: version %s]", constant.EXECUTABLE, constant.VERSION)
-	log.Write(getLogTimestamp(), header)
+	log.Write(LogTimestamp(), header)
 }
 
-// stopLogService stops the log service.
-func stopLogService() {
+// StopLogService stops the log service.
+func StopLogService() {
 	log.Close()
 }
 
-// buildLogMessage builds a log message by concatenating strings.
-func buildLogMessage(logMessage *string, data *string) {
+// BuildLogMessage builds a log message by concatenating strings.
+func BuildLogMessage(logMessage *string, data *string) {
 	if *logMessage != constant.EMPTYSTRING {
 		*logMessage += ", "
 	}
@@ -57,27 +59,27 @@ func buildLogMessage(logMessage *string, data *string) {
 }
 
 // writeLogBasic writes messages one to one either into a logfile, to STDOUT or both.
-func writeLogBasic(logTarget int, message string) {
+func WriteLogBasic(logTarget int, message string) {
 	switch logTarget {
 	case constant.LOGFILE:
-		gMtx.Lock()
+		mtx.Lock()
 		log.Write(message)
-		gMtx.Unlock()
+		mtx.Unlock()
 	case constant.STDOUT:
 		fmt.Println(message)
 	case constant.BOTH:
-		gMtx.Lock()
+		mtx.Lock()
 		log.Write(message)
-		gMtx.Unlock()
+		mtx.Unlock()
 		fmt.Println(message)
 	}
 	// wait for the log to be written
 	time.Sleep(time.Millisecond * 100)
 }
 
-// writeLog writes messages enriched by a timestamp and defined meta data into a logfile.
-func writeLog(msgLogLevel int, objId *string, messages ...string) {
-	if gInstanceLogLevel[inst(*objId)] >= msgLogLevel {
+// WriteLog writes messages enriched by a timestamp and defined meta data into a logfile.
+func WriteLog(msgLogLevel int, objId *string, messages ...string) {
+	if InstanceToLogLevel[inst(*objId)] >= msgLogLevel {
 		var sectionPrefix string
 		if strings.Count(*objId, ".") == 1 {
 			sectionPrefix = "instance"
@@ -85,12 +87,12 @@ func writeLog(msgLogLevel int, objId *string, messages ...string) {
 			sectionPrefix = "object"
 		}
 
-		gMtx.Lock()
-		header := fmt.Sprintf("%s [%s: %s]", getLogTimestamp(), sectionPrefix, *objId)
+		mtx.Lock()
+		header := fmt.Sprintf("%s [%s: %s]", LogTimestamp(), sectionPrefix, *objId)
 		log.Write(header)
 		for _, message := range messages {
 			log.Write(message)
 		}
-		gMtx.Unlock()
+		mtx.Unlock()
 	}
 }
