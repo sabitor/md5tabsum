@@ -77,6 +77,7 @@ func WriteLogBasic(logTarget int, message string) {
 	time.Sleep(time.Millisecond * 100)
 }
 
+// TODO: Integration of WriteLogBasic into WriteLog
 // WriteLog writes messages enriched by a timestamp and defined meta data into a logfile.
 func WriteLog(msgLogLevel int, objId *string, messages ...string) {
 	if InstanceToLogLevel[inst(*objId)] >= msgLogLevel {
