@@ -58,7 +58,7 @@ func BuildLogMessage(logMessage *string, data *string) {
 	*logMessage += *data
 }
 
-// writeLogBasic writes messages one to one either into a logfile, to STDOUT or both.
+// WriteLogBasic writes messages one to one either into a logfile, to STDOUT or both.
 func WriteLogBasic(logTarget int, message string) {
 	switch logTarget {
 	case constant.LOGFILE:
