@@ -24,32 +24,32 @@ var (
 
 // setInstanceConfig sets the instance parameters according the parsed config file section
 func setInstanceConfig(instance string, v *viper.Viper) {
-	logLevel, _ := strconv.Atoi(v.GetString("loglevel"))
+	logLvl, _ := strconv.Atoi(v.GetString("loglevel"))
 	port, _ := strconv.Atoi(v.GetString("port"))
 	allTables := strings.Split(strings.ReplaceAll(strings.ReplaceAll(v.GetString("table"), " ", constant.EMPTYSTRING), "\\", constant.EMPTYSTRING), ",") // replace " " and "\"" by ""
-	cfgSectionParts := strings.Split(instance, ".")                                                                                                      // e.g. exasol.instance1
+	cfgSectionParts := strings.Split(instance, ".")
 	switch cfgSectionParts[0] {
-	case "exasol":
-		instanceToConfig[instance] = &dbms.ExasolDB{
-			Cfg: dbms.Config{Host: v.GetString("host"),
-				Port:     port,
-				User:     v.GetString("user"),
-				Schema:   v.GetString("schema"),
-				Table:    allTables,
-				Instance: instance},
-		}
-		log.InstanceToLogLevel[instance] = logLevel
-	case "oracle":
-		instanceToConfig[instance] = &dbms.OracleDB{
-			Cfg: dbms.Config{Host: v.GetString("host"),
-				Port:     port,
-				User:     v.GetString("user"),
-				Schema:   v.GetString("schema"),
-				Table:    allTables,
-				Instance: instance},
-			Srv: v.GetString("service"),
-		}
-		log.InstanceToLogLevel[instance] = logLevel
+	// case "exasol":
+	// 	instanceToConfig[instance] = &dbms.ExasolDB{
+	// 		Cfg: dbms.Config{Host: v.GetString("host"),
+	// 			Port:     port,
+	// 			User:     v.GetString("user"),
+	// 			Schema:   v.GetString("schema"),
+	// 			Table:    allTables,
+	// 			Instance: instance},
+	// 	}
+	// 	log.InstanceToLogLevel[instance] = logLevel
+	// case "oracle":
+	// 	instanceToConfig[instance] = &dbms.OracleDB{
+	// 		Cfg: dbms.Config{Host: v.GetString("host"),
+	// 			Port:     port,
+	// 			User:     v.GetString("user"),
+	// 			Schema:   v.GetString("schema"),
+	// 			Table:    allTables,
+	// 			Instance: instance},
+	// 		Srv: v.GetString("service"),
+	// 	}
+	// 	log.InstanceToLogLevel[instance] = logLevel
 	case "mysql":
 		instanceToConfig[instance] = &dbms.MysqlDB{
 			Cfg: dbms.Config{Host: v.GetString("host"),
@@ -57,31 +57,32 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 				User:     v.GetString("user"),
 				Schema:   v.GetString("schema"),
 				Table:    allTables,
-				Instance: instance},
+				Instance: instance,
+				Loglevel: logLvl},
 		}
-		log.InstanceToLogLevel[instance] = logLevel
-	case "postgresql":
-		instanceToConfig[instance] = &dbms.PostgresqlDB{
-			Cfg: dbms.Config{Host: v.GetString("host"),
-				Port:     port,
-				User:     v.GetString("user"),
-				Schema:   v.GetString("schema"),
-				Table:    allTables,
-				Instance: instance},
-			Db: v.GetString("database"),
-		}
-		log.InstanceToLogLevel[instance] = logLevel
-	case "mssql":
-		instanceToConfig[instance] = &dbms.MssqlDB{
-			Cfg: dbms.Config{Host: v.GetString("host"),
-				Port:     port,
-				User:     v.GetString("user"),
-				Schema:   v.GetString("schema"),
-				Table:    allTables,
-				Instance: instance},
-			Db: v.GetString("database"),
-		}
-		log.InstanceToLogLevel[instance] = logLevel
+		// log.InstanceToLogLevel[instance] = logLevel
+	// case "postgresql":
+	// 	instanceToConfig[instance] = &dbms.PostgresqlDB{
+	// 		Cfg: dbms.Config{Host: v.GetString("host"),
+	// 			Port:     port,
+	// 			User:     v.GetString("user"),
+	// 			Schema:   v.GetString("schema"),
+	// 			Table:    allTables,
+	// 			Instance: instance},
+	// 		Db: v.GetString("database"),
+	// 	}
+	// 	log.InstanceToLogLevel[instance] = logLevel
+	// case "mssql":
+	// 	instanceToConfig[instance] = &dbms.MssqlDB{
+	// 		Cfg: dbms.Config{Host: v.GetString("host"),
+	// 			Port:     port,
+	// 			User:     v.GetString("user"),
+	// 			Schema:   v.GetString("schema"),
+	// 			Table:    allTables,
+	// 			Instance: instance},
+	// 		Db: v.GetString("database"),
+	// 	}
+	// 	log.InstanceToLogLevel[instance] = logLevel
 	// CHECK: Add support for other DBMS
 	default:
 		panic("something went wrong - this branch shouldn't be reached")

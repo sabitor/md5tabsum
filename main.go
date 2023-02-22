@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 var (
@@ -82,7 +83,8 @@ func main() {
 
 	// read config file
 	if err := setupEnv(cfg); err != nil {
-		log.WriteLogBasic(constant.STDOUT, err.Error())
+		log.WriteLog(0, constant.STDOUT, "hallo", err.Error())
+		// log.WriteLogBasic(constant.STDOUT, err.Error())
 		os.Exit(constant.ERROR)
 	}
 
@@ -90,15 +92,17 @@ func main() {
 		// -- start workflow --
 		log.StartLogService()
 		defer log.StopLogService()
+
+		log.WriteLog2(0, 0, constant.LOGFILE, "Version: "+constant.VERSION)
 		cfgPath, _ := filepath.Abs(*cfg)
-		message := fmt.Sprintf("%s [config file: %s]", log.LogTimestamp(), cfgPath)
-		log.WriteLogBasic(constant.LOGFILE, message)
-		message = fmt.Sprintf("%s [password store: %s]", log.LogTimestamp(), gPasswordStore)
-		log.WriteLogBasic(constant.LOGFILE, message)
+		var message string
+		log.WriteLog2(0, 0, constant.LOGFILE, "Config file: "+cfgPath)
+		log.WriteLog2(0, 0, constant.LOGFILE, "Password store: "+gPasswordStore)
 
 		// read instance passwords from password store
 		if err := readPasswordStore(); err != nil {
-			log.WriteLogBasic(constant.BOTH, err.Error())
+			// log.WriteLogBasic(constant.BOTH, err.Error())
+			log.WriteLog(0, constant.BOTH, constant.EMPTYSTRING, err.Error())
 			os.Exit(constant.ERROR)
 		}
 
@@ -117,7 +121,10 @@ func main() {
 		}
 
 		message = fmt.Sprintf("%s [rc=%d]", log.LogTimestamp(), rc)
-		log.WriteLogBasic(constant.LOGFILE, message)
+		// log.WriteLogBasic(constant.LOGFILE, message)
+		log.WriteLog(0, constant.LOGFILE, constant.EMPTYSTRING, message)
+		// wait for the log to be written
+		time.Sleep(time.Millisecond * 100)
 	} else {
 		// -- password store management --
 		if *passwordstore == "create" {
@@ -126,7 +133,8 @@ func main() {
 			}
 		} else if *passwordstore == "add" {
 			if *instance == constant.EMPTYSTRING {
-				log.WriteLogBasic(constant.STDOUT, "To add an instance and its password in the password store the instance command option '-i <instance name>' is required.")
+				// log.WriteLogBasic(constant.STDOUT, "To add an instance and its password in the password store the instance command option '-i <instance name>' is required.")
+				log.WriteLog(0, constant.STDOUT, constant.EMPTYSTRING, "To add an instance and its password in the password store the instance command option '-i <instance name>' is required.")
 				os.Exit(constant.ERROR)
 			}
 			if err := addInstance(instance); err != nil {
@@ -134,7 +142,8 @@ func main() {
 			}
 		} else if *passwordstore == "delete" {
 			if *instance == constant.EMPTYSTRING {
-				log.WriteLogBasic(constant.STDOUT, "To delete an instance and its password from the password store the instance command option '-i <instance name>' is required.")
+				// log.WriteLogBasic(constant.STDOUT, "To delete an instance and its password from the password store the instance command option '-i <instance name>' is required.")
+				log.WriteLog(0, constant.STDOUT, constant.EMPTYSTRING, "To delete an instance and its password from the password store the instance command option '-i <instance name>' is required.")
 				os.Exit(constant.ERROR)
 			}
 			if err := deleteInstance(instance); err != nil {
@@ -142,7 +151,8 @@ func main() {
 			}
 		} else if *passwordstore == "update" {
 			if *instance == constant.EMPTYSTRING {
-				log.WriteLogBasic(constant.STDOUT, "To update an instance password in the password store the instance command option '-i <instance name>' is required.")
+				// log.WriteLogBasic(constant.STDOUT, "To update an instance password in the password store the instance command option '-i <instance name>' is required.")
+				log.WriteLog(0, constant.STDOUT, constant.EMPTYSTRING, "To update an instance password in the password store the instance command option '-i <instance name>' is required.")
 				os.Exit(constant.ERROR)
 			}
 			if err := updateInstance(instance); err != nil {

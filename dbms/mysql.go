@@ -15,8 +15,12 @@ type MysqlDB struct {
 	Cfg Config
 }
 
-func (m *MysqlDB) Instance() *string {
-	return &m.Cfg.Instance
+func (m *MysqlDB) LogLevel() int {
+	return m.Cfg.Loglevel
+}
+
+func (m *MysqlDB) Instance() string {
+	return m.Cfg.Instance
 }
 
 func (m *MysqlDB) Host() string {
@@ -39,21 +43,22 @@ func (m *MysqlDB) Table() []string {
 	return m.Cfg.Table
 }
 
-func (m *MysqlDB) ObjId(obj *string) *string {
-	objId := m.Cfg.Instance + "." + *obj
-	return &objId
+func (m *MysqlDB) ObjId(obj string) string {
+	objId := m.Cfg.Instance + "." + obj
+	return objId
 }
 
 // ----------------------------------------------------------------------------
 func (m *MysqlDB) OpenDB(password string) (*sql.DB, error) {
 	sqlMode := "ANSI_QUOTES"
 	tableFilter := strings.Join(m.Table(), ", ")
-	log.WriteLog(1, m.Instance(), "Host: "+m.Host(), "Port: "+strconv.Itoa(m.Port()), "User: "+m.User(), "Schema: "+m.Schema(), "Table: "+tableFilter)
+	// log.WriteLog(1, constant.LOGFILE, m.Instance(), "Instance: "+m.Instance(), "Host: "+m.Host(), "Port: "+strconv.Itoa(m.Port()), "User: "+m.User(), "Schema: "+m.Schema(), "Table: "+tableFilter)
+	log.WriteLog2(1, m.LogLevel(), constant.LOGFILE, "Instance: "+m.Instance(), "Host: "+m.Host(), "Port: "+strconv.Itoa(m.Port()), "User: "+m.User(), "Schema: "+m.Schema(), "Table: "+tableFilter)
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?sql_mode=%s", m.User(), password, m.Host(), m.Port(), m.Schema(), sqlMode)
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		log.WriteLog(1, m.Instance(), err.Error())
-		log.WriteLogBasic(constant.STDOUT, err.Error())
+		log.WriteLog(0, constant.BOTH, m.Instance(), err.Error())
+		// log.WriteLogBasic(constant.STDOUT, err.Error())
 		return db, err
 	}
 	return db, err
@@ -75,8 +80,8 @@ func (m *MysqlDB) QueryDB(db *sql.DB) error {
 		sqlPreparedStmt := "select TABLE_NAME from INFORMATION_SCHEMA.TABLES where table_schema=? and table_name like ?"
 		rowSet, err = db.Query(sqlPreparedStmt, m.Schema(), table)
 		if err != nil {
-			log.WriteLog(1, m.Instance(), err.Error())
-			log.WriteLogBasic(constant.STDOUT, err.Error())
+			log.WriteLog(0, constant.BOTH, m.Instance(), err.Error())
+			// log.WriteLogBasic(constant.STDOUT, err.Error())
 			return err
 		}
 		foundTable := constant.EMPTYSTRING
@@ -84,8 +89,8 @@ func (m *MysqlDB) QueryDB(db *sql.DB) error {
 			// table exists in DB schema
 			err := rowSet.Scan(&foundTable)
 			if err != nil {
-				log.WriteLog(1, m.Instance(), err.Error())
-				log.WriteLogBasic(constant.STDOUT, err.Error())
+				log.WriteLog(0, constant.BOTH, m.Instance(), err.Error())
+				// log.WriteLogBasic(constant.STDOUT, err.Error())
 				return err
 			}
 			tableNames = append(tableNames, foundTable)
@@ -97,8 +102,8 @@ func (m *MysqlDB) QueryDB(db *sql.DB) error {
 	}
 	if logTableNamesFalse != constant.EMPTYSTRING {
 		message := "Table(s) for filter '" + logTableNamesFalse + "' not found."
-		log.WriteLog(1, m.Instance(), message)
-		log.WriteLogBasic(constant.STDOUT, message)
+		log.WriteLog(0, constant.BOTH, m.Instance(), message)
+		// log.WriteLogBasic(constant.STDOUT, message)
 	}
 
 	// EXECUTE: compile MD5 for all found tables
@@ -106,8 +111,8 @@ func (m *MysqlDB) QueryDB(db *sql.DB) error {
 		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA=? and TABLE_NAME=? order by ORDINAL_POSITION asc"
 		rowSet, err = db.Query(sqlPreparedStmt, m.Schema(), table)
 		if err != nil {
-			log.WriteLog(1, m.ObjId(&table), err.Error())
-			log.WriteLogBasic(constant.STDOUT, err.Error())
+			log.WriteLog(0, constant.BOTH, m.ObjId(table), err.Error())
+			// log.WriteLogBasic(constant.STDOUT, err.Error())
 			return err
 		}
 
@@ -125,8 +130,8 @@ func (m *MysqlDB) QueryDB(db *sql.DB) error {
 			}
 			err := rowSet.Scan(&column, &columnType)
 			if err != nil {
-				log.WriteLog(1, m.ObjId(&table), err.Error())
-				log.WriteLogBasic(constant.STDOUT, err.Error())
+				log.WriteLog(0, constant.BOTH, m.ObjId(table), err.Error())
+				// log.WriteLogBasic(constant.STDOUT, err.Error())
 				return err
 			}
 
@@ -150,25 +155,26 @@ func (m *MysqlDB) QueryDB(db *sql.DB) error {
 		} else {
 			columnNames += ", 'null')"
 		}
-		log.WriteLog(2, m.ObjId(&table), "COLUMNS: "+logColumns, "DATATYPES: "+logColumnTypes)
+		log.WriteLog(2, constant.LOGFILE, m.ObjId(table), "COLUMNS: "+logColumns, "DATATYPES: "+logColumnTypes)
 
 		// compile checksum (d41d8cd98f00b204e9800998ecf8427e is the default result for an empty table)
 		sqlText := "select coalesce(md5(concat(sum(cast(conv(substring(ROWHASH, 1, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 9, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 17, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 25, 8), 16, 10) as unsigned)))), 'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM from (select md5(%s) ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, m.Schema(), table)
-		log.WriteLog(2, m.ObjId(&table), "SQL: "+sqlQueryStmt)
+		log.WriteLog(2, constant.LOGFILE, m.ObjId(table), "SQL: "+sqlQueryStmt)
 
 		// start SQL command
 		err = db.QueryRow(sqlQueryStmt).Scan(&checkSum)
 		if err != nil {
-			log.WriteLog(1, m.ObjId(&table), err.Error())
-			log.WriteLogBasic(constant.STDOUT, err.Error())
+			log.WriteLog(0, constant.BOTH, m.ObjId(table), err.Error())
+			// log.WriteLogBasic(constant.STDOUT, err.Error())
 			return err
 		}
 
 		// write checksum to STDOUT and to the log file
-		result := fmt.Sprintf("%s:%s", *m.ObjId(&table), checkSum)
-		log.WriteLog(1, m.ObjId(&table), result)
-		log.WriteLogBasic(constant.STDOUT, result)
+		result := fmt.Sprintf("%s:%s", m.ObjId(table), checkSum)
+		// log.WriteLog(0, constant.BOTH, m.ObjId(table), result)
+		log.WriteLog2(0, log.InstanceToLogLevel[m.Instance()], constant.BOTH, result)
+		// log.WriteLogBasic(constant.STDOUT, result)
 	}
 
 	return err
