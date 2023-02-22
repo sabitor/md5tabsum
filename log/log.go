@@ -41,8 +41,8 @@ func LogTimestamp() string {
 func StartLogService() {
 	go log.Service()
 	log.Write("-------------------------------------------------------------------------------")
-	header := fmt.Sprintf("[%s: version %s]", constant.EXECUTABLE, constant.VERSION)
-	log.Write(LogTimestamp(), header)
+	// header := fmt.Sprintf("[%s: version %s]", constant.EXECUTABLE, constant.VERSION)
+	// log.Write(LogTimestamp(), header)
 }
 
 // StopLogService stops the log service.
@@ -59,41 +59,112 @@ func BuildLogMessage(logMessage *string, data *string) {
 }
 
 // WriteLogBasic writes messages one to one either into a logfile, to STDOUT or both.
-func WriteLogBasic(logTarget int, message string) {
-	switch logTarget {
-	case constant.LOGFILE:
+// func WriteLogBasic(logTarget int, message string) {
+// 	switch logTarget {
+// 	case constant.LOGFILE:
+// 		mtx.Lock()
+// 		log.Write(message)
+// 		mtx.Unlock()
+// 	case constant.STDOUT:
+// 		fmt.Println(message)
+// 	case constant.BOTH:
+// 		mtx.Lock()
+// 		log.Write(message)
+// 		mtx.Unlock()
+// 		fmt.Println(message)
+// 	}
+// 	// wait for the log to be written
+// 	time.Sleep(time.Millisecond * 100)
+// }
+
+// WriteLog writes messages enriched by a timestamp and defined meta data into a logfile.
+// func WriteLog(msgLogLevel int, logTarget int, objId string, messages ...string) {
+// 	if objId == constant.EMPTYSTRING {
+// 		for _, message := range messages {
+// 			switch logTarget {
+// 			case constant.LOGFILE:
+// 				log.Write(message)
+// 			case constant.STDOUT:
+// 				fmt.Println(message)
+// 			case constant.BOTH:
+// 				log.Write(message)
+// 				fmt.Println(message)
+// 			}
+// 		}
+// 	} else if InstanceToLogLevel[inst(objId)] >= msgLogLevel {
+// 		var sectionPrefix string
+// 		if strings.Count(objId, ".") == 1 {
+// 			sectionPrefix = "instance"
+// 		} else {
+// 			sectionPrefix = "object"
+// 		}
+
+// 		mtx.Lock()
+// 		header := fmt.Sprintf("%s [%s: %s]", LogTimestamp(), sectionPrefix, objId)
+// 		log.Write(header)
+// 		for _, message := range messages {
+// 			switch logTarget {
+// 			case constant.LOGFILE:
+// 				log.Write(message)
+// 			case constant.BOTH:
+// 				log.Write(message)
+// 				fmt.Println(message)
+// 			}
+// 		}
+// 		mtx.Unlock()
+// 	} else {
+// 		return
+// 	}
+// }
+
+func WriteLog(msgLogLevel int, logTarget int, objId string, messages ...string) {
+	if objId == constant.EMPTYSTRING {
+		for _, message := range messages {
+			switch logTarget {
+			case constant.LOGFILE:
+				log.Write(message)
+			case constant.STDOUT:
+				fmt.Println(message)
+			case constant.BOTH:
+				log.Write(message)
+				fmt.Println(message)
+			}
+		}
+	} else if InstanceToLogLevel[inst(objId)] >= msgLogLevel {
 		mtx.Lock()
-		log.Write(message)
+		log.Write(LogTimestamp())
+		for _, message := range messages {
+			switch logTarget {
+			case constant.LOGFILE:
+				log.Write(message)
+			case constant.BOTH:
+				log.Write(message)
+				fmt.Println(message)
+			}
+		}
 		mtx.Unlock()
-	case constant.STDOUT:
-		fmt.Println(message)
-	case constant.BOTH:
-		mtx.Lock()
-		log.Write(message)
-		mtx.Unlock()
-		fmt.Println(message)
+	} else {
+		return
 	}
-	// wait for the log to be written
-	time.Sleep(time.Millisecond * 100)
 }
 
-// TODO: Integration of WriteLogBasic into WriteLog
-// WriteLog writes messages enriched by a timestamp and defined meta data into a logfile.
-func WriteLog(msgLogLevel int, objId *string, messages ...string) {
-	if InstanceToLogLevel[inst(*objId)] >= msgLogLevel {
-		var sectionPrefix string
-		if strings.Count(*objId, ".") == 1 {
-			sectionPrefix = "instance"
-		} else {
-			sectionPrefix = "object"
-		}
-
+func WriteLog2(msgLogLevel int, instLogLevel int, logTarget int, messages ...string) {
+	if instLogLevel >= msgLogLevel {
 		mtx.Lock()
-		header := fmt.Sprintf("%s [%s: %s]", LogTimestamp(), sectionPrefix, *objId)
-		log.Write(header)
+		log.Write(LogTimestamp())
 		for _, message := range messages {
-			log.Write(message)
+			switch logTarget {
+			case constant.LOGFILE:
+				log.Write(message)
+			case constant.STDOUT:
+				fmt.Println(message)
+			case constant.BOTH:
+				log.Write(message)
+				fmt.Println(message)
+			}
 		}
 		mtx.Unlock()
+	} else {
+		return
 	}
 }
