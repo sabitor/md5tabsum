@@ -30,15 +30,15 @@ var (
 	log *gologger.CustomLogger
 )
 
+// logTimestamp returns the current time in a defined format.
+func logTimestamp() string {
+	ts := time.Now()
+	return fmt.Sprintf("%d-%02d-%02d %02d:%02d:%02d.%03d", ts.Year(), ts.Month(), ts.Day(), ts.Hour(), ts.Minute(), ts.Second(), int(math.Round(float64(ts.Nanosecond()/1000000))))
+}
+
 // LogHandler declares a global log handle
 func LogHandler(logName string) {
 	log = gologger.NewCustomLogger(logName, "", 0)
-}
-
-// LogTimestamp returns the current time in a defined format.
-func LogTimestamp() string {
-	ts := time.Now()
-	return fmt.Sprintf("%d-%02d-%02d %02d:%02d:%02d.%03d", ts.Year(), ts.Month(), ts.Day(), ts.Hour(), ts.Minute(), ts.Second(), int(math.Round(float64(ts.Nanosecond()/1000000))))
 }
 
 // StartLogService starts the log service.
@@ -52,19 +52,11 @@ func StopLogService() {
 	log.Close()
 }
 
-// BuildLogMessage builds a log message by concatenating strings.
-func BuildLogMessage(logMessage *string, data *string) {
-	if *logMessage != "" {
-		*logMessage += ", "
-	}
-	*logMessage += *data
-}
-
 func WriteLog(msgLogLevel int, configLogLevel int, logTarget int, messages ...string) {
 	if configLogLevel >= msgLogLevel {
 		mtx.Lock()
 		if logTarget != STDOUT {
-			log.Write(LogTimestamp())
+			log.Write(logTimestamp())
 		}
 		for _, message := range messages {
 			switch logTarget {
