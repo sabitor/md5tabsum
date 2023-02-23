@@ -6,7 +6,7 @@ const (
 	EXECUTABLE  = "md5tabsum"
 	EMPTYSTRING = ""
 	OK          = 0
-	ERROR       = 1
+	ERROR       = 2
 
 	// -- Logging --
 	LOGFILE = 1

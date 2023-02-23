@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"md5tabsum/constant"
 	"md5tabsum/dbms"
 	"md5tabsum/log"
 	"os"
@@ -13,84 +14,74 @@ import (
 )
 
 var (
-	// Map to store active instances and their assigned configuration
+	// map to store active instances and their assigned configuration
 	// mDbms[Key -> DBMS instance name : Value -> DBMS instance config]
 	// Example: mDbms["exasol.instance1":exasolDB DBMS interface]
 	instanceToConfig = make(map[string]dbms.Database)
-	// List of all supported DBMS
+	// list of all supported DBMS
 	supportedDbms = []string{"exasol", "mysql", "mssql", "oracle", "postgresql"}
 )
 
 // setInstanceConfig sets the instance parameters according the parsed config file section
 func setInstanceConfig(instance string, v *viper.Viper) {
-	var logLvl int
-	switch strings.ToUpper(v.GetString("loglevel")) {
-	case "BASIC":
-		logLvl = 0
-	case "MEDIUM":
-		logLvl = 1
-	case "FULL":
-		logLvl = 2
-	default:
-		panic("An unsupported log detail level has been detected in the config file!")
-	}
+	logLevel, _ := strconv.Atoi(v.GetString("loglevel"))
 	port, _ := strconv.Atoi(v.GetString("port"))
-	allTables := strings.Split(strings.ReplaceAll(strings.ReplaceAll(v.GetString("table"), " ", ""), "\\", ""), ",") // replace " " and "\"" by ""
-	cfgSectionParts := strings.Split(instance, ".")
+	allTables := strings.Split(strings.ReplaceAll(strings.ReplaceAll(v.GetString("table"), " ", constant.EMPTYSTRING), "\\", constant.EMPTYSTRING), ",") // replace " " and "\"" by ""
+	cfgSectionParts := strings.Split(instance, ".")                                                                                                      // e.g. exasol.instance1
 	switch cfgSectionParts[0] {
-	// case "exasol":
-	// 	instanceToConfig[instance] = &dbms.ExasolDB{
-	// 		Cfg: dbms.Config{Host: v.GetString("host"),
-	// 			Port:     port,
-	// 			User:     v.GetString("user"),
-	// 			Schema:   v.GetString("schema"),
-	// 			Table:    allTables,
-	// 			Instance: instance},
-	// 	}
-	// 	log.InstanceToLogLevel[instance] = logLevel
-	// case "oracle":
-	// 	instanceToConfig[instance] = &dbms.OracleDB{
-	// 		Cfg: dbms.Config{Host: v.GetString("host"),
-	// 			Port:     port,
-	// 			User:     v.GetString("user"),
-	// 			Schema:   v.GetString("schema"),
-	// 			Table:    allTables,
-	// 			Instance: instance},
-	// 		Srv: v.GetString("service"),
-	// 	}
-	// 	log.InstanceToLogLevel[instance] = logLevel
-	case "mysql":
-		instanceToConfig[instance] = &dbms.MysqlDB{
-			Cfg: dbms.Config{Loglevel: logLvl,
-				Instance: instance,
-				Host:     v.GetString("host"),
+	case "exasol":
+		instanceToConfig[instance] = &dbms.ExasolDB{
+			Cfg: dbms.Config{Host: v.GetString("host"),
 				Port:     port,
 				User:     v.GetString("user"),
 				Schema:   v.GetString("schema"),
-				Table:    allTables},
+				Table:    allTables,
+				Instance: instance},
 		}
-	// case "postgresql":
-	// 	instanceToConfig[instance] = &dbms.PostgresqlDB{
-	// 		Cfg: dbms.Config{Host: v.GetString("host"),
-	// 			Port:     port,
-	// 			User:     v.GetString("user"),
-	// 			Schema:   v.GetString("schema"),
-	// 			Table:    allTables,
-	// 			Instance: instance},
-	// 		Db: v.GetString("database"),
-	// 	}
-	// 	log.InstanceToLogLevel[instance] = logLevel
-	// case "mssql":
-	// 	instanceToConfig[instance] = &dbms.MssqlDB{
-	// 		Cfg: dbms.Config{Host: v.GetString("host"),
-	// 			Port:     port,
-	// 			User:     v.GetString("user"),
-	// 			Schema:   v.GetString("schema"),
-	// 			Table:    allTables,
-	// 			Instance: instance},
-	// 		Db: v.GetString("database"),
-	// 	}
-	// 	log.InstanceToLogLevel[instance] = logLevel
+		log.InstanceToLogLevel[instance] = logLevel
+	case "oracle":
+		instanceToConfig[instance] = &dbms.OracleDB{
+			Cfg: dbms.Config{Host: v.GetString("host"),
+				Port:     port,
+				User:     v.GetString("user"),
+				Schema:   v.GetString("schema"),
+				Table:    allTables,
+				Instance: instance},
+			Srv: v.GetString("service"),
+		}
+		log.InstanceToLogLevel[instance] = logLevel
+	case "mysql":
+		instanceToConfig[instance] = &dbms.MysqlDB{
+			Cfg: dbms.Config{Host: v.GetString("host"),
+				Port:     port,
+				User:     v.GetString("user"),
+				Schema:   v.GetString("schema"),
+				Table:    allTables,
+				Instance: instance},
+		}
+		log.InstanceToLogLevel[instance] = logLevel
+	case "postgresql":
+		instanceToConfig[instance] = &dbms.PostgresqlDB{
+			Cfg: dbms.Config{Host: v.GetString("host"),
+				Port:     port,
+				User:     v.GetString("user"),
+				Schema:   v.GetString("schema"),
+				Table:    allTables,
+				Instance: instance},
+			Db: v.GetString("database"),
+		}
+		log.InstanceToLogLevel[instance] = logLevel
+	case "mssql":
+		instanceToConfig[instance] = &dbms.MssqlDB{
+			Cfg: dbms.Config{Host: v.GetString("host"),
+				Port:     port,
+				User:     v.GetString("user"),
+				Schema:   v.GetString("schema"),
+				Table:    allTables,
+				Instance: instance},
+			Db: v.GetString("database"),
+		}
+		log.InstanceToLogLevel[instance] = logLevel
 	// CHECK: Add support for other DBMS
 	default:
 		panic("something went wrong - this branch shouldn't be reached")
@@ -120,9 +111,9 @@ func setupEnv(cfg *string) error {
 		return err
 	}
 
-	// Read common config parameters
+	// read common config parameters
 	logFile := viper.GetString("Logfile")
-	if logFile == "" {
+	if logFile == constant.EMPTYSTRING {
 		return errors.New("the Logfile parameter isn't configured")
 	} else {
 		err := createFileCheck(&logFile)
@@ -132,7 +123,7 @@ func setupEnv(cfg *string) error {
 		log.LogHandler(logFile)
 	}
 	passwordStore := viper.GetString("Passwordstore")
-	if passwordStore == "" {
+	if passwordStore == constant.EMPTYSTRING {
 		return errors.New("the Passwordstore parameter isn't configured")
 	} else {
 		err := createFileCheck(&passwordStore)
@@ -142,10 +133,10 @@ func setupEnv(cfg *string) error {
 		gPasswordStore = passwordStore
 	}
 
-	// Read DBMS instance config parameters
+	// read DBMS instance config parameters
 	for _, v := range supportedDbms {
 		cfgFirstLevelKey := viper.GetStringMapString(v) // all cfg instances (instance1, instance2, ...) are assigned to a DBMS name (exasol, oracle, ...)
-		dbmsInstance := ""
+		dbmsInstance := constant.EMPTYSTRING
 		for k := range cfgFirstLevelKey {
 			dbmsInstance = v + "." + k // e.g. exasol.instance1
 			if cfgInstance := viper.Sub(dbmsInstance); cfgInstance != nil && cfgInstance.GetString("active") == "1" {
