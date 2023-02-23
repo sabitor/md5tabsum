@@ -16,7 +16,6 @@ type Database interface {
 
 // Common config file structure
 type Config struct {
-	Loglevel int
 	Instance string
 	Host     string
 	Port     int
