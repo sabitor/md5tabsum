@@ -3,7 +3,6 @@ package dbms
 import (
 	"database/sql"
 	"fmt"
-	"md5tabsum/constant"
 	"md5tabsum/log"
 	"strconv"
 	"strings"
@@ -16,8 +15,12 @@ type MssqlDB struct {
 	Db  string
 }
 
-func (s *MssqlDB) Instance() *string {
-	return &s.Cfg.Instance
+func (s *MssqlDB) LogLevel() int {
+	return s.Cfg.Loglevel
+}
+
+func (s *MssqlDB) Instance() string {
+	return s.Cfg.Instance
 }
 
 func (s *MssqlDB) Host() string {
@@ -44,20 +47,14 @@ func (s *MssqlDB) Database() string {
 	return s.Db
 }
 
-func (s *MssqlDB) ObjId(obj *string) *string {
-	objId := s.Cfg.Instance + "." + *obj
-	return &objId
-}
-
 // ----------------------------------------------------------------------------
 func (s *MssqlDB) OpenDB(password string) (*sql.DB, error) {
 	tableFilter := strings.Join(s.Table(), ", ")
-	log.WriteLog(1, s.Instance(), "Host: "+s.Host(), "Port: "+strconv.Itoa(s.Port()), "Database: "+s.Database(), "User: "+s.User(), "Schema: "+s.Schema(), "Table: "+tableFilter)
+	log.WriteLog(log.MEDIUM, s.LogLevel(), log.LOGFILE, "[Instance]", s.Instance(), "[Host]", s.Host(), "[Port]", strconv.Itoa(s.Port()), "[Database]", s.Database(), "[User]", s.User(), "[Schema]", s.Schema(), "[Table]", tableFilter)
 	dsn := fmt.Sprintf("server=%s;user id=%s; password=%s; port=%d; database=%s;", s.Host(), s.User(), password, s.Port(), s.Database())
 	db, err := sql.Open("sqlserver", dsn)
 	if err != nil {
-		log.WriteLog(1, s.Instance(), err.Error())
-		log.WriteLogBasic(constant.STDOUT, err.Error())
+		log.WriteLog(log.BASIC, s.LogLevel(), log.BOTH, err.Error())
 		return db, err
 	}
 	return db, err
@@ -74,35 +71,27 @@ func (s *MssqlDB) QueryDB(db *sql.DB) error {
 	var err error
 
 	// PREPARE: filter for all existing DB tables based on the configured table parameter (the tables parameter can include placeholders, e.g. %)
-	logTableNamesFalse := constant.EMPTYSTRING
 	for _, table := range s.Table() {
 		sqlPreparedStmt := "select TABLE_NAME from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=@p1 and TABLE_NAME like @p2"
 		rowSet, err = db.Query(sqlPreparedStmt, s.Schema(), table)
 		if err != nil {
-			log.WriteLog(1, s.Instance(), err.Error())
-			log.WriteLogBasic(constant.STDOUT, err.Error())
+			log.WriteLog(log.BASIC, s.LogLevel(), log.BOTH, err.Error())
 			return err
 		}
-		foundTable := constant.EMPTYSTRING
+		foundTable := ""
 		for rowSet.Next() {
 			// table exists in DB schema
 			err := rowSet.Scan(&foundTable)
 			if err != nil {
-				log.WriteLog(1, s.Instance(), err.Error())
-				log.WriteLogBasic(constant.STDOUT, err.Error())
+				log.WriteLog(log.BASIC, s.LogLevel(), log.BOTH, err.Error())
 				return err
 			}
 			tableNames = append(tableNames, foundTable)
 		}
-		if foundTable == constant.EMPTYSTRING {
+		if foundTable == "" {
 			// table doesn't exist in the DB schema
-			log.BuildLogMessage(&logTableNamesFalse, &table)
+			log.WriteLog(log.BASIC, s.LogLevel(), log.BOTH, "Table "+table+" could not be found.")
 		}
-	}
-	if logTableNamesFalse != constant.EMPTYSTRING {
-		message := "Table(s) for filter '" + logTableNamesFalse + "' not found."
-		log.WriteLog(1, s.Instance(), message)
-		log.WriteLogBasic(constant.STDOUT, message)
 	}
 
 	// EXECUTE: compile MD5 for all found tables
@@ -110,26 +99,23 @@ func (s *MssqlDB) QueryDB(db *sql.DB) error {
 		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA=@p1 and TABLE_NAME=@p2 order by ORDINAL_POSITION asc"
 		rowSet, err = db.Query(sqlPreparedStmt, s.Schema(), table)
 		if err != nil {
-			log.WriteLog(1, s.ObjId(&table), err.Error())
-			log.WriteLogBasic(constant.STDOUT, err.Error())
+			log.WriteLog(log.BASIC, s.LogLevel(), log.BOTH, err.Error())
 			return err
 		}
 
-		columnNames, column, columnType := constant.EMPTYSTRING, constant.EMPTYSTRING, constant.EMPTYSTRING
-		numColumns := 0 // required for building the correct 'concat' string
-		// logging
-		logColumns, logColumnTypes := constant.EMPTYSTRING, constant.EMPTYSTRING
+		var numColumns int // required for building the correct 'concat' string
+		var columnNames, column, columnType string
+		var logColumns, logColumnTypes []string
 
 		for rowSet.Next() {
-			if columnNames != constant.EMPTYSTRING {
+			if columnNames != "" {
 				columnNames += ", "
 			} else {
 				columnNames += "concat("
 			}
 			err := rowSet.Scan(&column, &columnType)
 			if err != nil {
-				log.WriteLog(1, s.ObjId(&table), err.Error())
-				log.WriteLogBasic(constant.STDOUT, err.Error())
+				log.WriteLog(log.BASIC, s.LogLevel(), log.BOTH, err.Error())
 				return err
 			}
 
@@ -146,33 +132,31 @@ func (s *MssqlDB) QueryDB(db *sql.DB) error {
 				columnNames += "coalesce(cast(\"" + column + "\" as varchar(max)), 'null')"
 			}
 
-			numColumns += 1
-			log.BuildLogMessage(&logColumns, &column)
-			log.BuildLogMessage(&logColumnTypes, &columnType)
+			logColumns = append(logColumns, column)
+			logColumnTypes = append(logColumnTypes, columnType)
+			numColumns++
 		}
 		if numColumns > 1 {
 			columnNames += ")"
 		} else {
 			columnNames += ", 'null')"
 		}
-		log.WriteLog(2, s.ObjId(&table), "COLUMNS: "+logColumns, "DATATYPES: "+logColumnTypes)
+		log.WriteLog(log.FULL, s.LogLevel(), log.LOGFILE, "[COLUMNS]", strings.Join(logColumns, ", "), "[DATATYPES]", strings.Join(logColumnTypes, ", "))
 
 		// compile checksum
 		sqlText := "select lower(convert(varchar(max), HashBytes('MD5', concat(cast(sum(convert(bigint, convert(varbinary, substring(t.ROWHASH, 1,8), 2))) as varchar(max)), cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 9,8), 2))) as varchar(max)), cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 17,8), 2))) as varchar(max)), cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 25,8), 2))) as varchar(max)))),2)) CHECKSUM from (select lower(convert(varchar(max), HashBytes('MD5', %s), 2)) ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, s.Schema(), table)
-		log.WriteLog(2, s.ObjId(&table), "SQL: "+sqlQueryStmt)
+		log.WriteLog(log.FULL, s.LogLevel(), log.LOGFILE, "[SQL]", sqlQueryStmt)
 
 		err = db.QueryRow(sqlQueryStmt).Scan(&checkSum)
 		if err != nil {
-			log.WriteLog(1, s.ObjId(&table), err.Error())
-			log.WriteLogBasic(constant.STDOUT, err.Error())
+			log.WriteLog(log.BASIC, s.LogLevel(), log.BOTH, err.Error())
 			return err
 		}
 
-		// write checksum to STDOUT and to the log file
-		result := fmt.Sprintf("%s:%s", *s.ObjId(&table), checkSum)
-		log.WriteLog(1, s.ObjId(&table), result)
-		log.WriteLogBasic(constant.STDOUT, result)
+		result := fmt.Sprintf("%s:%s", s.Instance()+"."+table, checkSum)
+		log.WriteLog(log.BASIC, s.LogLevel(), log.LOGFILE, "[Checksum]", result)
+		log.WriteLog(log.BASIC, s.LogLevel(), log.STDOUT, result)
 	}
 
 	return err
