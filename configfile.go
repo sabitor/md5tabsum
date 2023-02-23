@@ -80,17 +80,18 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 	// 		Db: v.GetString("database"),
 	// 	}
 	// 	log.InstanceToLogLevel[instance] = logLevel
-	// case "mssql":
-	// 	instanceToConfig[instance] = &dbms.MssqlDB{
-	// 		Cfg: dbms.Config{Host: v.GetString("host"),
-	// 			Port:     port,
-	// 			User:     v.GetString("user"),
-	// 			Schema:   v.GetString("schema"),
-	// 			Table:    allTables,
-	// 			Instance: instance},
-	// 		Db: v.GetString("database"),
-	// 	}
-	// 	log.InstanceToLogLevel[instance] = logLevel
+	case "mssql":
+		instanceToConfig[instance] = &dbms.MssqlDB{
+			Cfg: dbms.Config{Loglevel: logLvl,
+				Instance: instance,
+				Host:     v.GetString("host"),
+				Port:     port,
+				User:     v.GetString("user"),
+				Schema:   v.GetString("schema"),
+				Table:    allTables,
+			},
+			Db: v.GetString("database"),
+		}
 	// CHECK: Add support for other DBMS
 	default:
 		panic("something went wrong - this branch shouldn't be reached")
