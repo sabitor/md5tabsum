@@ -100,10 +100,10 @@ func main() {
 		log.StartLogService()
 		defer log.StopLogService()
 
-		log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[Version]", VERSION)
+		log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[Version]: "+VERSION)
 		cfgPath, _ := filepath.Abs(*cfg)
-		log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[ConfigFile]", cfgPath)
-		log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[PasswordStore]", gPasswordStore)
+		log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[ConfigFile]: "+cfgPath)
+		log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[PasswordStore]: "+gPasswordStore)
 
 		// Read instance passwords from password store
 		if err := readPasswordStore(); err != nil {
@@ -125,7 +125,7 @@ func main() {
 			rc |= i
 		}
 
-		log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[Rc]", strconv.Itoa(rc))
+		log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[Rc]: "+strconv.Itoa(rc))
 		// Wait for the last log entry to be written
 		time.Sleep(time.Millisecond * 100)
 	} else {
