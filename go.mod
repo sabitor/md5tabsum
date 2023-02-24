@@ -6,6 +6,8 @@ require (
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/exasol/exasol-driver-go v0.4.7
 	github.com/go-sql-driver/mysql v1.7.0
+	github.com/lib/pq v1.10.7
+	github.com/sijms/go-ora/v2 v2.5.31
 	github.com/spf13/viper v1.15.0
 	github.com/syrinsecurity/gologger v1.2.0
 	golang.org/x/term v0.5.0
