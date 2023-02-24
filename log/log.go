@@ -52,16 +52,13 @@ func StopLogService() {
 	log.Close()
 }
 
-func WriteLog(msgLogLevel int, configLogLevel int, logTarget int, messages ...string) {
-	if configLogLevel >= msgLogLevel {
+func WriteLog(msgLogLevel int, cfgLogLevel int, logTarget int, messages ...string) {
+	if cfgLogLevel >= msgLogLevel {
 		mtx.Lock()
-		if logTarget != STDOUT {
-			log.Write(logTimestamp())
-		}
 		for _, message := range messages {
 			switch logTarget {
 			case LOGFILE:
-				log.Write(message)
+				log.Write(logTimestamp() + " " + message)
 			case STDOUT:
 				fmt.Println(message)
 			case BOTH:
