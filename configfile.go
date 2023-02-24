@@ -48,17 +48,17 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 				Schema:   v.GetString("schema"),
 				Table:    allTables},
 		}
-	// case "oracle":
-	// 	instanceToConfig[instance] = &dbms.OracleDB{
-	// 		Cfg: dbms.Config{Host: v.GetString("host"),
-	// 			Port:     port,
-	// 			User:     v.GetString("user"),
-	// 			Schema:   v.GetString("schema"),
-	// 			Table:    allTables,
-	// 			Instance: instance},
-	// 		Srv: v.GetString("service"),
-	// 	}
-	// 	log.InstanceToLogLevel[instance] = logLevel
+	case "oracle":
+		instanceToConfig[instance] = &dbms.OracleDB{
+			Cfg: dbms.Config{Loglevel: logLvl,
+				Instance: instance,
+				Host:     v.GetString("host"),
+				Port:     port,
+				User:     v.GetString("user"),
+				Schema:   v.GetString("schema"),
+				Table:    allTables},
+			Srv: v.GetString("service"),
+		}
 	case "mysql":
 		instanceToConfig[instance] = &dbms.MysqlDB{
 			Cfg: dbms.Config{Loglevel: logLvl,

@@ -3,12 +3,11 @@ package dbms
 import (
 	"database/sql"
 	"fmt"
-	"md5tabsum/constant"
 	"md5tabsum/log"
 	"strconv"
 	"strings"
 
-	"github.com/sijms/go-ora/v2"
+	go_ora "github.com/sijms/go-ora/v2"
 )
 
 type OracleDB struct {
@@ -16,8 +15,12 @@ type OracleDB struct {
 	Srv string
 }
 
-func (o *OracleDB) Instance() *string {
-	return &o.Cfg.Instance
+func (o *OracleDB) LogLevel() int {
+	return o.Cfg.Loglevel
+}
+
+func (o *OracleDB) Instance() string {
+	return o.Cfg.Instance
 }
 
 func (o *OracleDB) Host() string {
@@ -44,24 +47,18 @@ func (o *OracleDB) Service() string {
 	return o.Srv
 }
 
-func (o *OracleDB) ObjId(obj *string) *string {
-	objId := o.Cfg.Instance + "." + *obj
-	return &objId
-}
-
 // ----------------------------------------------------------------------------
 func (o *OracleDB) OpenDB(password string) (*sql.DB, error) {
-	/* urlOptions := map[string]string{
-		"trace file": "trace.log",
-	} */
+	// urlOptions := map[string]string{
+	// 	"trace file": "trace.log",
+	// }
 
 	tableFilter := strings.Join(o.Table(), ", ")
-	log.WriteLog(1, o.Instance(), "Host: "+o.Host(), "Port: "+strconv.Itoa(o.Port()), "Service: "+o.Service(), "User: "+o.User(), "Schema: "+o.Schema(), "Table: "+tableFilter)
+	log.WriteLog(log.MEDIUM, o.LogLevel(), log.LOGFILE, "[Instance]: "+o.Instance(), "[Host]: "+o.Host(), "[Port]: "+strconv.Itoa(o.Port()), "[Service]: "+o.Service(), "[User]: "+o.User(), "[Schema]: "+o.Schema(), "[Table]: "+tableFilter)
 	dsn := go_ora.BuildUrl(o.Host(), o.Port(), o.Service(), o.User(), password /* urlOptions */, nil)
 	db, err := sql.Open("oracle", dsn)
 	if err != nil {
-		log.WriteLog(1, o.Instance(), err.Error())
-		log.WriteLogBasic(constant.STDOUT, err.Error())
+		log.WriteLog(log.BASIC, o.LogLevel(), log.BOTH, err.Error())
 		return db, err
 	}
 	return db, err
@@ -80,71 +77,59 @@ func (o *OracleDB) QueryDB(db *sql.DB) error {
 	// Set '.' as NUMBER/FLOAT decimal point for this session
 	_, err = db.Exec("alter session set NLS_NUMERIC_CHARACTERS = '.,'")
 	if err != nil {
-		log.WriteLog(1, o.Instance(), err.Error())
-		log.WriteLogBasic(constant.STDOUT, err.Error())
+		log.WriteLog(log.BASIC, o.LogLevel(), log.BOTH, err.Error())
 		return err
 	}
 
-	// PREPARE: filter for all existing DB tables based on the configured table parameter (the tables parameter can include placeholders, e.g. %)
-	logTableNamesFalse := constant.EMPTYSTRING
+	// PREPARE: Filter for all existing DB tables based on the configured table parameter (the tables parameter can include placeholders, e.g. %)
 	for _, table := range o.Table() {
 		// Hint: Prepared statements are currently not supported by go-ora. Thus, the command will be build by using the real filter values instead of using place holders.
 		sqlPreparedStmt := "select TABLE_NAME from ALL_TABLES where OWNER='" + strings.ToUpper(o.Schema()) + "' and TABLE_NAME like '" + strings.ToUpper(table) + "'"
 		rowSet, err = db.Query(sqlPreparedStmt)
 		if err != nil {
-			log.WriteLog(1, o.Instance(), err.Error())
-			log.WriteLogBasic(constant.STDOUT, err.Error())
+			log.WriteLog(log.BASIC, o.LogLevel(), log.BOTH, err.Error())
 			return err
 		}
-		foundTable := constant.EMPTYSTRING
+		foundTable := ""
 		for rowSet.Next() {
-			// table exists in DB schema
+			// Table exists in DB schema
 			err := rowSet.Scan(&foundTable)
 			if err != nil {
-				log.WriteLog(1, o.Instance(), err.Error())
-				log.WriteLogBasic(constant.STDOUT, err.Error())
+				log.WriteLog(log.BASIC, o.LogLevel(), log.BOTH, err.Error())
 				return err
 			}
 			tableNames = append(tableNames, foundTable)
 		}
-		if foundTable == constant.EMPTYSTRING {
-			// table doesn't exist in the DB schema
-			log.BuildLogMessage(&logTableNamesFalse, &table)
+		if foundTable == "" {
+			// Table doesn't exist in the DB schema
+			log.WriteLog(log.BASIC, o.LogLevel(), log.BOTH, "Table "+table+" could not be found.")
 		}
-	}
-	if logTableNamesFalse != constant.EMPTYSTRING {
-		message := "Table(s) for filter '" + logTableNamesFalse + "' not found."
-		log.WriteLog(1, o.Instance(), message)
-		log.WriteLogBasic(constant.STDOUT, message)
 	}
 
 	// EXECUTE: compile MD5 for all found tables
+	max := 4000
 	for _, table := range tableNames {
 		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE || '(' || DATA_LENGTH || ',' || DATA_PRECISION || ',' || DATA_SCALE || ')' as DATA_TYPE from ALL_TAB_COLS where OWNER='" + strings.ToUpper(o.Schema()) + "' and TABLE_NAME='" + strings.ToUpper(table) + "' order by COLUMN_ID asc"
 		rowSet, err = db.Query(sqlPreparedStmt)
 		if err != nil {
-			log.WriteLog(1, o.ObjId(&table), err.Error())
-			log.WriteLogBasic(constant.STDOUT, err.Error())
+			log.WriteLog(log.BASIC, o.LogLevel(), log.BOTH, err.Error())
 			return err
 		}
 
-		max := 4000
-		columnNames, column, columnType := constant.EMPTYSTRING, constant.EMPTYSTRING, constant.EMPTYSTRING
-		// logging
-		logColumns, logColumnTypes := constant.EMPTYSTRING, constant.EMPTYSTRING
+		var columnNames, column, columnType string
+		var logColumns, logColumnTypes []string
 
 		for rowSet.Next() {
-			if columnNames != constant.EMPTYSTRING {
+			if columnNames != "" {
 				columnNames += " || "
 			}
 			err := rowSet.Scan(&column, &columnType)
 			if err != nil {
-				log.WriteLog(1, o.ObjId(&table), err.Error())
-				log.WriteLogBasic(constant.STDOUT, err.Error())
+				log.WriteLog(log.BASIC, o.LogLevel(), log.BOTH, err.Error())
 				return err
 			}
 
-			// convert all columns into string data type
+			// Convert all columns into string data type
 			if strings.Contains(strings.ToUpper(columnType), "CHAR") {
 				columnNames += "case when \"" + column + "\" is NULL then 'null' else cast(lower(standard_hash(trim(trailing ' ' from \"" + column + "\"), 'MD5')) as varchar2(4000)) end"
 			} else if strings.Contains(strings.ToUpper(columnType), "DATE") {
@@ -159,28 +144,26 @@ func (o *OracleDB) QueryDB(db *sql.DB) error {
 				columnNames += "coalesce(cast(\"" + column + "\" as varchar2(" + strconv.Itoa(max) + ")), 'null')"
 			}
 
-			log.BuildLogMessage(&logColumns, &column)
-			log.BuildLogMessage(&logColumnTypes, &columnType)
+			logColumns = append(logColumns, column)
+			logColumnTypes = append(logColumnTypes, columnType)
 		}
-		log.WriteLog(2, o.ObjId(&table), "COLUMNS: "+logColumns, "DATATYPES: "+logColumnTypes)
+		log.WriteLog(log.FULL, o.LogLevel(), log.LOGFILE, "[COLUMNS]: "+strings.Join(logColumns, ", "), "[DATATYPES]: "+strings.Join(logColumnTypes, ", "))
 
-		// compile checksum
+		// Compile checksum
 		sqlText := "select /*+ PARALLEL */ lower(cast(standard_hash(sum(to_number(substr(t.rowhash, 1, 8), 'xxxxxxxx')) || sum(to_number(substr(t.rowhash, 9, 8), 'xxxxxxxx')) || sum(to_number(substr(t.rowhash, 17, 8), 'xxxxxxxx')) || sum(to_number(substr(t.rowhash, 25, 8), 'xxxxxxxx')), 'MD5') as varchar(4000))) CHECKSUM from ( select standard_hash(%s, 'MD5') ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, o.Schema(), table)
-		log.WriteLog(2, o.ObjId(&table), "SQL: "+sqlQueryStmt)
+		log.WriteLog(log.FULL, o.LogLevel(), log.LOGFILE, "[SQL]: "+sqlQueryStmt)
 
-		// start SQL command
+		// Start SQL command
 		err = db.QueryRow(sqlQueryStmt).Scan(&checkSum)
 		if err != nil {
-			log.WriteLog(1, o.ObjId(&table), err.Error())
-			log.WriteLogBasic(constant.STDOUT, err.Error())
+			log.WriteLog(log.BASIC, o.LogLevel(), log.BOTH, err.Error())
 			return err
 		}
 
-		// write checksum to STDOUT and to the log file
-		result := fmt.Sprintf("%s:%s", *o.ObjId(&table), checkSum)
-		log.WriteLog(1, o.ObjId(&table), result)
-		log.WriteLogBasic(constant.STDOUT, result)
+		result := fmt.Sprintf("%s:%s", o.Instance()+"."+table, checkSum)
+		log.WriteLog(log.BASIC, o.LogLevel(), log.LOGFILE, "[Checksum]: "+result)
+		log.WriteLog(log.BASIC, o.LogLevel(), log.STDOUT, result)
 	}
 
 	return err
