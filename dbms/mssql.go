@@ -50,7 +50,7 @@ func (s *MssqlDB) Database() string {
 // ----------------------------------------------------------------------------
 func (s *MssqlDB) OpenDB(password string) (*sql.DB, error) {
 	tableFilter := strings.Join(s.Table(), ", ")
-	log.WriteLog(log.MEDIUM, s.LogLevel(), log.LOGFILE, "[Instance]", s.Instance(), "[Host]", s.Host(), "[Port]", strconv.Itoa(s.Port()), "[Database]", s.Database(), "[User]", s.User(), "[Schema]", s.Schema(), "[Table]", tableFilter)
+	log.WriteLog(log.MEDIUM, s.LogLevel(), log.LOGFILE, "[Instance]: "+s.Instance(), "[Host]: "+s.Host(), "[Port]: "+strconv.Itoa(s.Port()), "[Database]: "+s.Database(), "[User]: "+s.User(), "[Schema]: "+s.Schema(), "[Table]: "+tableFilter)
 	dsn := fmt.Sprintf("server=%s;user id=%s; password=%s; port=%d; database=%s;", s.Host(), s.User(), password, s.Port(), s.Database())
 	db, err := sql.Open("sqlserver", dsn)
 	if err != nil {
@@ -141,12 +141,12 @@ func (s *MssqlDB) QueryDB(db *sql.DB) error {
 		} else {
 			columnNames += ", 'null')"
 		}
-		log.WriteLog(log.FULL, s.LogLevel(), log.LOGFILE, "[COLUMNS]", strings.Join(logColumns, ", "), "[DATATYPES]", strings.Join(logColumnTypes, ", "))
+		log.WriteLog(log.FULL, s.LogLevel(), log.LOGFILE, "[Columns]: "+strings.Join(logColumns, ", "), "[Datatypes]: "+strings.Join(logColumnTypes, ", "))
 
 		// compile checksum
 		sqlText := "select lower(convert(varchar(max), HashBytes('MD5', concat(cast(sum(convert(bigint, convert(varbinary, substring(t.ROWHASH, 1,8), 2))) as varchar(max)), cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 9,8), 2))) as varchar(max)), cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 17,8), 2))) as varchar(max)), cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 25,8), 2))) as varchar(max)))),2)) CHECKSUM from (select lower(convert(varchar(max), HashBytes('MD5', %s), 2)) ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, s.Schema(), table)
-		log.WriteLog(log.FULL, s.LogLevel(), log.LOGFILE, "[SQL]", sqlQueryStmt)
+		log.WriteLog(log.FULL, s.LogLevel(), log.LOGFILE, "[SQL]: "+sqlQueryStmt)
 
 		err = db.QueryRow(sqlQueryStmt).Scan(&checkSum)
 		if err != nil {
@@ -155,7 +155,7 @@ func (s *MssqlDB) QueryDB(db *sql.DB) error {
 		}
 
 		result := fmt.Sprintf("%s:%s", s.Instance()+"."+table, checkSum)
-		log.WriteLog(log.BASIC, s.LogLevel(), log.LOGFILE, "[Checksum]", result)
+		log.WriteLog(log.BASIC, s.LogLevel(), log.LOGFILE, "[Checksum]: "+result)
 		log.WriteLog(log.BASIC, s.LogLevel(), log.STDOUT, result)
 	}
 
