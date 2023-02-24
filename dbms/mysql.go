@@ -46,7 +46,7 @@ func (m *MysqlDB) Table() []string {
 func (m *MysqlDB) OpenDB(password string) (*sql.DB, error) {
 	sqlMode := "ANSI_QUOTES"
 	tableFilter := strings.Join(m.Table(), ", ")
-	log.WriteLog(log.MEDIUM, m.LogLevel(), log.LOGFILE, "[Instance]", m.Instance(), "[Host]", m.Host(), "[Port]", strconv.Itoa(m.Port()), "[User]", m.User(), "[Schema]", m.Schema(), "[Table]", tableFilter)
+	log.WriteLog(log.MEDIUM, m.LogLevel(), log.LOGFILE, "[Instance]: "+m.Instance(), "[Host]: "+m.Host(), "[Port]: "+strconv.Itoa(m.Port()), "[User]: "+m.User(), "[Schema]: "+m.Schema(), "[Table]: "+tableFilter)
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?sql_mode=%s", m.User(), password, m.Host(), m.Port(), m.Schema(), sqlMode)
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
@@ -137,12 +137,12 @@ func (m *MysqlDB) QueryDB(db *sql.DB) error {
 		} else {
 			columnNames += ", 'null')"
 		}
-		log.WriteLog(log.FULL, m.LogLevel(), log.LOGFILE, "[COLUMNS]", strings.Join(logColumns, ", "), "[DATATYPES]", strings.Join(logColumnTypes, ", "))
+		log.WriteLog(log.FULL, m.LogLevel(), log.LOGFILE, "[COLUMNS]: "+strings.Join(logColumns, ", "), "[DATATYPES]: "+strings.Join(logColumnTypes, ", "))
 
 		// Compile checksum (d41d8cd98f00b204e9800998ecf8427e is the default result for an empty table)
 		sqlText := "select coalesce(md5(concat(sum(cast(conv(substring(ROWHASH, 1, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 9, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 17, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 25, 8), 16, 10) as unsigned)))), 'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM from (select md5(%s) ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, m.Schema(), table)
-		log.WriteLog(log.FULL, m.LogLevel(), log.LOGFILE, "[SQL]", sqlQueryStmt)
+		log.WriteLog(log.FULL, m.LogLevel(), log.LOGFILE, "[SQL]: "+sqlQueryStmt)
 
 		// Start SQL command
 		err = db.QueryRow(sqlQueryStmt).Scan(&checkSum)
@@ -152,7 +152,7 @@ func (m *MysqlDB) QueryDB(db *sql.DB) error {
 		}
 
 		result := fmt.Sprintf("%s:%s", m.Instance()+"."+table, checkSum)
-		log.WriteLog(log.BASIC, m.LogLevel(), log.LOGFILE, "[Checksum]", result)
+		log.WriteLog(log.BASIC, m.LogLevel(), log.LOGFILE, "[Checksum]: "+result)
 		log.WriteLog(log.BASIC, m.LogLevel(), log.STDOUT, result)
 	}
 
