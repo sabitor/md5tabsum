@@ -38,16 +38,16 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 	allTables := strings.Split(strings.ReplaceAll(strings.ReplaceAll(v.GetString("table"), " ", ""), "\\", ""), ",") // replace " " and "\"" by ""
 	cfgSectionParts := strings.Split(instance, ".")
 	switch cfgSectionParts[0] {
-	// case "exasol":
-	// 	instanceToConfig[instance] = &dbms.ExasolDB{
-	// 		Cfg: dbms.Config{Host: v.GetString("host"),
-	// 			Port:     port,
-	// 			User:     v.GetString("user"),
-	// 			Schema:   v.GetString("schema"),
-	// 			Table:    allTables,
-	// 			Instance: instance},
-	// 	}
-	// 	log.InstanceToLogLevel[instance] = logLevel
+	case "exasol":
+		instanceToConfig[instance] = &dbms.ExasolDB{
+			Cfg: dbms.Config{Loglevel: logLvl,
+				Instance: instance,
+				Host:     v.GetString("host"),
+				Port:     port,
+				User:     v.GetString("user"),
+				Schema:   v.GetString("schema"),
+				Table:    allTables},
+		}
 	// case "oracle":
 	// 	instanceToConfig[instance] = &dbms.OracleDB{
 	// 		Cfg: dbms.Config{Host: v.GetString("host"),
