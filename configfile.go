@@ -94,7 +94,7 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 		}
 	// CHECK: Add support for other DBMS
 	default:
-		panic("something went wrong - this branch shouldn't be reached")
+		panic("Something went wrong - this branch shouldn't be reached!")
 	}
 }
 
