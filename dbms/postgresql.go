@@ -3,7 +3,6 @@ package dbms
 import (
 	"database/sql"
 	"fmt"
-	"md5tabsum/constant"
 	"md5tabsum/log"
 	"strconv"
 	"strings"
@@ -16,8 +15,12 @@ type PostgresqlDB struct {
 	Db  string
 }
 
-func (p *PostgresqlDB) Instance() *string {
-	return &p.Cfg.Instance
+func (p *PostgresqlDB) LogLevel() int {
+	return p.Cfg.Loglevel
+}
+
+func (p *PostgresqlDB) Instance() string {
+	return p.Cfg.Instance
 }
 
 func (p *PostgresqlDB) Host() string {
@@ -44,20 +47,14 @@ func (p *PostgresqlDB) Database() string {
 	return p.Db
 }
 
-func (p *PostgresqlDB) ObjId(obj *string) *string {
-	objId := p.Cfg.Instance + "." + *obj
-	return &objId
-}
-
 // ----------------------------------------------------------------------------
 func (p *PostgresqlDB) OpenDB(password string) (*sql.DB, error) {
 	tableFilter := strings.Join(p.Table(), ", ")
-	log.WriteLog(1, p.Instance(), "Host: "+p.Host(), "Port: "+strconv.Itoa(p.Port()), "Database: "+p.Database(), "User: "+p.User(), "Schema: "+p.Schema(), "Table: "+tableFilter)
+	log.WriteLog(log.MEDIUM, p.LogLevel(), log.LOGFILE, "[Instance]: "+p.Instance(), "[Host]: "+p.Host(), "[Port]: "+strconv.Itoa(p.Port()), "[Database]: "+p.Database(), "[User]: "+p.User(), "[Schema]: "+p.Schema(), "[Table]: "+tableFilter)
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", p.Host(), p.Port(), p.User(), password, p.Database())
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-		log.WriteLog(1, p.Instance(), err.Error())
-		log.WriteLogBasic(constant.STDOUT, err.Error())
+		log.WriteLog(log.BASIC, p.LogLevel(), log.BOTH, err.Error())
 		return db, err
 	}
 	return db, err
@@ -73,60 +70,49 @@ func (p *PostgresqlDB) QueryDB(db *sql.DB) error {
 	var checkSum string
 	var err error
 
-	// PREPARE: filter for all existing DB tables based on the configured table parameter (the tables parameter can include placeholders, e.g. %)
-	logTableNamesFalse := constant.EMPTYSTRING
+	// PREPARE: Filter for all existing DB tables based on the configured table parameter (the tables parameter can include placeholders, e.g. %)
 	for _, table := range p.Table() {
 		sqlPreparedStmt := "select TABLE_NAME from information_schema.tables where table_schema=$1 and table_name like $2"
 		rowSet, err = db.Query(sqlPreparedStmt, p.Schema(), table)
 		if err != nil {
-			log.WriteLog(1, p.Instance(), err.Error())
-			log.WriteLogBasic(constant.STDOUT, err.Error())
+			log.WriteLog(log.BASIC, p.LogLevel(), log.BOTH, err.Error())
 			return err
 		}
-		foundTable := constant.EMPTYSTRING
+		foundTable := ""
 		for rowSet.Next() {
-			// table exists in DB schema
+			// Table exists in DB schema
 			err := rowSet.Scan(&foundTable)
 			if err != nil {
-				log.WriteLog(1, p.Instance(), err.Error())
-				log.WriteLogBasic(constant.STDOUT, err.Error())
+				log.WriteLog(log.BASIC, p.LogLevel(), log.BOTH, err.Error())
 				return err
 			}
 			tableNames = append(tableNames, foundTable)
 		}
-		if foundTable == constant.EMPTYSTRING {
-			// table doesn't exist in the DB schema
-			log.BuildLogMessage(&logTableNamesFalse, &table)
+		if foundTable == "" {
+			// Table doesn't exist in the DB schema
+			log.WriteLog(log.BASIC, p.LogLevel(), log.BOTH, "Table "+table+" could not be found.")
 		}
 	}
-	if logTableNamesFalse != constant.EMPTYSTRING {
-		message := "Table(s) for filter '" + logTableNamesFalse + "' not found."
-		log.WriteLog(1, p.Instance(), message)
-		log.WriteLogBasic(constant.STDOUT, message)
-	}
 
-	// EXECUTE: compile MD5 for all found tables
+	// EXECUTE: Compile MD5 for all found tables
 	for _, table := range tableNames {
 		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE from information_schema.columns where table_schema=$1 and table_name=$2 order by ORDINAL_POSITION asc"
 		rowSet, err = db.Query(sqlPreparedStmt, p.Schema(), table)
 		if err != nil {
-			log.WriteLog(1, p.ObjId(&table), err.Error())
-			log.WriteLogBasic(constant.STDOUT, err.Error())
+			log.WriteLog(log.BASIC, p.LogLevel(), log.BOTH, err.Error())
 			return err
 		}
 
-		columnNames, column, columnType := constant.EMPTYSTRING, constant.EMPTYSTRING, constant.EMPTYSTRING
-		// logging
-		logColumns, logColumnTypes := constant.EMPTYSTRING, constant.EMPTYSTRING
+		var columnNames, column, columnType string
+		var logColumns, logColumnTypes []string
 
 		for rowSet.Next() {
-			if columnNames != constant.EMPTYSTRING {
+			if columnNames != "" {
 				columnNames += " || "
 			}
 			err := rowSet.Scan(&column, &columnType)
 			if err != nil {
-				log.WriteLog(1, p.ObjId(&table), err.Error())
-				log.WriteLogBasic(constant.STDOUT, err.Error())
+				log.WriteLog(log.BASIC, p.LogLevel(), log.BOTH, err.Error())
 				return err
 			}
 
@@ -143,27 +129,25 @@ func (p *PostgresqlDB) QueryDB(db *sql.DB) error {
 				columnNames += "coalesce(\"" + column + "\"::text, 'null')"
 			}
 
-			log.BuildLogMessage(&logColumns, &column)
-			log.BuildLogMessage(&logColumnTypes, &columnType)
+			logColumns = append(logColumns, column)
+			logColumnTypes = append(logColumnTypes, columnType)
 		}
-		log.WriteLog(2, p.ObjId(&table), "COLUMNS: "+logColumns, "DATATYPES: "+logColumnTypes)
+		log.WriteLog(log.FULL, p.LogLevel(), log.LOGFILE, "[COLUMNS]: "+strings.Join(logColumns, ", "), "[DATATYPES]: "+strings.Join(logColumnTypes, ", "))
 
-		// compile checksum (d41d8cd98f00b204e9800998ecf8427e is the default result for an empty table)
+		// Compile checksum (d41d8cd98f00b204e9800998ecf8427e is the default result for an empty table)
 		sqlText := "select coalesce(md5(sum(('x' || substring(ROWHASH, 1, 8))::bit(32)::bigint)::text || sum(('x' || substring(ROWHASH, 9, 8))::bit(32)::bigint)::text ||sum(('x' || substring(ROWHASH, 17, 8))::bit(32)::bigint)::text || sum(('x' || substring(ROWHASH, 25, 8))::bit(32)::bigint)::text), 'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM from (select md5(%s) ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, p.Schema(), table)
-		log.WriteLog(2, p.ObjId(&table), "SQL: "+sqlQueryStmt)
+		log.WriteLog(log.FULL, p.LogLevel(), log.LOGFILE, "[SQL]: "+sqlQueryStmt)
 
 		err = db.QueryRow(sqlQueryStmt).Scan(&checkSum)
 		if err != nil {
-			log.WriteLog(1, p.ObjId(&table), err.Error())
-			log.WriteLogBasic(constant.STDOUT, err.Error())
+			log.WriteLog(log.BASIC, p.LogLevel(), log.BOTH, err.Error())
 			return err
 		}
 
-		// write checksum to STDOUT and to the log file
-		result := fmt.Sprintf("%s:%s", *p.ObjId(&table), checkSum)
-		log.WriteLog(1, p.ObjId(&table), result)
-		log.WriteLogBasic(constant.STDOUT, result)
+		result := fmt.Sprintf("%s:%s", p.Instance()+"."+table, checkSum)
+		log.WriteLog(log.BASIC, p.LogLevel(), log.LOGFILE, "[Checksum]: "+result)
+		log.WriteLog(log.BASIC, p.LogLevel(), log.STDOUT, result)
 	}
 
 	return err

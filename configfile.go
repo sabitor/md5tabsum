@@ -69,17 +69,17 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 				Schema:   v.GetString("schema"),
 				Table:    allTables},
 		}
-	// case "postgresql":
-	// 	instanceToConfig[instance] = &dbms.PostgresqlDB{
-	// 		Cfg: dbms.Config{Host: v.GetString("host"),
-	// 			Port:     port,
-	// 			User:     v.GetString("user"),
-	// 			Schema:   v.GetString("schema"),
-	// 			Table:    allTables,
-	// 			Instance: instance},
-	// 		Db: v.GetString("database"),
-	// 	}
-	// 	log.InstanceToLogLevel[instance] = logLevel
+	case "postgresql":
+		instanceToConfig[instance] = &dbms.PostgresqlDB{
+			Cfg: dbms.Config{Loglevel: logLvl,
+				Instance: instance,
+				Host:     v.GetString("host"),
+				Port:     port,
+				User:     v.GetString("user"),
+				Schema:   v.GetString("schema"),
+				Table:    allTables},
+			Db: v.GetString("database"),
+		}
 	case "mssql":
 		instanceToConfig[instance] = &dbms.MssqlDB{
 			Cfg: dbms.Config{Loglevel: logLvl,
