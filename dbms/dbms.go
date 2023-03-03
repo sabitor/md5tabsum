@@ -14,7 +14,7 @@ type Database interface {
 	QueryDB(*sql.DB) error
 }
 
-// Common config file structure
+// Config defines the generic config file structure
 type Config struct {
 	Loglevel int
 	Instance string
