@@ -98,7 +98,7 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 	}
 }
 
-// createFileCheck checks if the specified file can be created
+// createFileCheck checks if the specified file could be created
 func createFileCheck(fileName *string) error {
 	file, err := os.OpenFile(*fileName, os.O_CREATE, 0600)
 	if err != nil {
@@ -132,7 +132,7 @@ func setupEnv(cfg *string) error {
 		}
 		log.LogHandler(logFile)
 	}
-	passwordStore := viper.GetString("Passwordstore")
+	passwordStore = viper.GetString("Passwordstore")
 	if passwordStore == "" {
 		return errors.New("the Passwordstore parameter isn't configured")
 	} else {
@@ -140,7 +140,6 @@ func setupEnv(cfg *string) error {
 		if err != nil {
 			return err
 		}
-		gPasswordStore = passwordStore
 	}
 
 	// Read DBMS instance config parameters
