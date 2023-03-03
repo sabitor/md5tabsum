@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"sync"
 	"time"
 )
 
@@ -25,6 +24,8 @@ var (
 	gPasswordStore string
 	// map to store instances and their password
 	gInstancePassword = make(map[string]string)
+	// Global return
+	rc int
 )
 
 // instanceName validates the existence of a given DBMS instance name in the instaneToConfig map.
@@ -50,36 +51,36 @@ func parseCmdArgs() (*string, *bool, *string, *string) {
 	return cfg, version, password, instance
 }
 
-// compileMD5CheckSum encapsulates the workflow how to compile the MD5 checksum of a database table.
-// The steps are: 1) open a database connection, 2) execution of SQL commands, 3) close database connection.
-func compileMD5CheckSum(instance string, wg *sync.WaitGroup, c chan<- int) {
-	defer wg.Done()
+// calcMD5TableCheckSum encapsulates the workflow how to compile the MD5 checksum of a database table.
+func calcMD5TableCheckSum(instance string) <-chan int {
+	out := make(chan int)
 
-	// open database connection
+	go func() {
+		defer close(out)
 
-	password := gInstancePassword[instance]
-	db, err := instanceName(instance).OpenDB(password)
-	if err != nil {
-		c <- ERROR
-		return
-	}
-	// close database connection
-	defer instanceName(instance).CloseDB(db)
-	// query database
-	err = instanceName(instance).QueryDB(db)
-	if err != nil {
-		c <- ERROR
-		return
-	}
-	// success
-	c <- OK
+		// open database connection
+		password := gInstancePassword[instance]
+		db, err := instanceName(instance).OpenDB(password)
+		if err != nil {
+			out <- ERROR
+			return
+		}
+		defer instanceName(instance).CloseDB(db)
+		// query database
+		err = instanceName(instance).QueryDB(db)
+		if err != nil {
+			out <- ERROR
+			return
+		}
+		// success
+		out <- OK
+	}()
+
+	return out
 }
 
 // ----------------------------------------------------------------------------
 func main() {
-	var rc int
-	var wg sync.WaitGroup
-
 	// Parse command line arguments
 	cfg, version, passwordstore, instance := parseCmdArgs()
 
@@ -111,18 +112,14 @@ func main() {
 			os.Exit(ERROR)
 		}
 
-		// Compile MD5 table checksum for all configured DBMS instances
-		c := make(chan int, len(instanceToConfig))
+		// Start calculation
+		var md5CalcRc []<-chan int
 		for k := range instanceToConfig {
-			wg.Add(1)
-			go compileMD5CheckSum(k, &wg, c)
+			md5CalcRc = append(md5CalcRc, calcMD5TableCheckSum(k))
 		}
-		wg.Wait()
-		close(c)
-
-		// Calculate return code (rc of all go routines are considered)
-		for i := range c {
-			rc |= i
+		// Calculate overall return code
+		for _, v := range md5CalcRc {
+			rc |= <-v
 		}
 
 		log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[Rc]: "+strconv.Itoa(rc))
