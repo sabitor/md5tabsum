@@ -16,7 +16,7 @@ import (
 )
 
 // The cipher key has to be either 16, 24 or 32 bytes. Change it accordingly!
-const CIPHERKEY = "abcdefghijklmnopqrstuvwxyz012345"
+const cipherkey = "abcdefghijklmnopqrstuvwxyz012345"
 
 // writePasswordStore writes the encrypted passwords for each configured DBMS instance to the password store.
 // The password store location is specified in the config file.
@@ -29,7 +29,7 @@ func writePasswordStore(flags int) error {
 	defer f.Close()
 
 	for k, v := range instancePassword {
-		record := encryptAES(CIPHERKEY, k+":"+v) + "\n"
+		record := encryptAES(cipherkey, k+":"+v) + "\n"
 		f.Write([]byte(record))
 	}
 	return err
@@ -46,7 +46,7 @@ func readPasswordStore() error {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		record := scanner.Text() // get the line string
-		instance, password, _ := strings.Cut(decryptAES(CIPHERKEY, record), ":")
+		instance, password, _ := strings.Cut(decryptAES(cipherkey, record), ":")
 		instancePassword[instance] = password
 	}
 
