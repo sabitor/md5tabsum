@@ -117,7 +117,7 @@ func main() {
 		for k := range instanceToConfig {
 			md5CalcRc = append(md5CalcRc, calcMD5TableCheckSum(k))
 		}
-		// Calculate overall return code
+		// Block until all return codes are available -> calculate overall return code
 		for _, v := range md5CalcRc {
 			rc |= <-v
 		}
