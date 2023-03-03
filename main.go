@@ -20,11 +20,11 @@ const (
 )
 
 var (
-	// password store file
-	gPasswordStore string
-	// map to store instances and their password
-	gInstancePassword = make(map[string]string)
-	// Global return
+	// Password store file
+	passwordStore string
+	// Map to store instances and their password
+	instancePassword = make(map[string]string)
+	// Application return
 	rc int
 )
 
@@ -59,7 +59,7 @@ func calcMD5TableCheckSum(instance string) <-chan int {
 		defer close(out)
 
 		// open database connection
-		password := gInstancePassword[instance]
+		password := instancePassword[instance]
 		db, err := instanceName(instance).OpenDB(password)
 		if err != nil {
 			out <- ERROR
@@ -104,7 +104,7 @@ func main() {
 		log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[Version]: "+VERSION)
 		cfgPath, _ := filepath.Abs(*cfg)
 		log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[ConfigFile]: "+cfgPath)
-		log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[PasswordStore]: "+gPasswordStore)
+		log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[PasswordStore]: "+passwordStore)
 
 		// Read instance passwords from password store
 		if err := readPasswordStore(); err != nil {
