@@ -7,63 +7,67 @@ import (
 	"strconv"
 	"strings"
 
+	// Import of the PostgreSQL driver to be used by the database/sql API
 	_ "github.com/lib/pq"
 )
 
+// PostgresqlDB defines the attributes of the PostgreSQL DBMS
 type PostgresqlDB struct {
 	Cfg Config
 	Db  string
 }
 
-func (p *PostgresqlDB) LogLevel() int {
+func (p *PostgresqlDB) logLevel() int {
 	return p.Cfg.Loglevel
 }
 
-func (p *PostgresqlDB) Instance() string {
+func (p *PostgresqlDB) instance() string {
 	return p.Cfg.Instance
 }
 
-func (p *PostgresqlDB) Host() string {
+func (p *PostgresqlDB) host() string {
 	return p.Cfg.Host
 }
 
-func (p *PostgresqlDB) Port() int {
+func (p *PostgresqlDB) port() int {
 	return p.Cfg.Port
 }
 
-func (p *PostgresqlDB) User() string {
+func (p *PostgresqlDB) user() string {
 	return p.Cfg.User
 }
 
-func (p *PostgresqlDB) Schema() string {
+func (p *PostgresqlDB) schema() string {
 	return p.Cfg.Schema
 }
 
-func (p *PostgresqlDB) Table() []string {
+func (p *PostgresqlDB) table() []string {
 	return p.Cfg.Table
 }
 
-func (p *PostgresqlDB) Database() string {
+func (p *PostgresqlDB) database() string {
 	return p.Db
 }
 
-// ----------------------------------------------------------------------------
+// OpenDB implements the OpenDB method of the DBMS interface
 func (p *PostgresqlDB) OpenDB(password string) (*sql.DB, error) {
-	tableFilter := strings.Join(p.Table(), ", ")
-	log.WriteLog(log.MEDIUM, p.LogLevel(), log.LOGFILE, "[Instance]: "+p.Instance(), "[Host]: "+p.Host(), "[Port]: "+strconv.Itoa(p.Port()), "[Database]: "+p.Database(), "[User]: "+p.User(), "[Schema]: "+p.Schema(), "[Table]: "+tableFilter)
-	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", p.Host(), p.Port(), p.User(), password, p.Database())
+	tableFilter := strings.Join(p.table(), ", ")
+	log.WriteLog(log.MEDIUM, p.logLevel(), log.LOGFILE, "[Instance]: "+p.instance(), "[Host]: "+p.host(), "[Port]: "+strconv.Itoa(p.port()), "[Database]: "+p.database(), "[User]: "+p.user(), "[Schema]: "+p.schema(), "[Table]: "+tableFilter)
+	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", p.host(), p.port(), p.user(), password, p.database())
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-		log.WriteLog(log.BASIC, p.LogLevel(), log.BOTH, err.Error())
+		log.WriteLog(log.BASIC, p.logLevel(), log.BOTH, err.Error())
 		return db, err
 	}
 	return db, err
 }
 
+// CloseDB implements the CloseDB method of the DBMS interface
 func (p *PostgresqlDB) CloseDB(db *sql.DB) error {
 	return db.Close()
 }
 
+// QueryDB implements the QueryDB method of the DBMS interface
 func (p *PostgresqlDB) QueryDB(db *sql.DB) error {
 	var rowSet *sql.Rows
 	var tableNames []string
@@ -71,11 +75,11 @@ func (p *PostgresqlDB) QueryDB(db *sql.DB) error {
 	var err error
 
 	// PREPARE: Filter for all existing DB tables based on the configured table parameter (the tables parameter can include placeholders, e.g. %)
-	for _, table := range p.Table() {
+	for _, table := range p.table() {
 		sqlPreparedStmt := "select TABLE_NAME from information_schema.tables where table_schema=$1 and table_name like $2"
-		rowSet, err = db.Query(sqlPreparedStmt, p.Schema(), table)
+		rowSet, err = db.Query(sqlPreparedStmt, p.schema(), table)
 		if err != nil {
-			log.WriteLog(log.BASIC, p.LogLevel(), log.BOTH, err.Error())
+			log.WriteLog(log.BASIC, p.logLevel(), log.BOTH, err.Error())
 			return err
 		}
 		foundTable := ""
@@ -83,23 +87,23 @@ func (p *PostgresqlDB) QueryDB(db *sql.DB) error {
 			// Table exists in DB schema
 			err := rowSet.Scan(&foundTable)
 			if err != nil {
-				log.WriteLog(log.BASIC, p.LogLevel(), log.BOTH, err.Error())
+				log.WriteLog(log.BASIC, p.logLevel(), log.BOTH, err.Error())
 				return err
 			}
 			tableNames = append(tableNames, foundTable)
 		}
 		if foundTable == "" {
 			// Table doesn't exist in the DB schema
-			log.WriteLog(log.BASIC, p.LogLevel(), log.BOTH, "Table "+table+" could not be found.")
+			log.WriteLog(log.BASIC, p.logLevel(), log.BOTH, "Table "+table+" could not be found.")
 		}
 	}
 
 	// EXECUTE: Compile MD5 for all found tables
 	for _, table := range tableNames {
 		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE from information_schema.columns where table_schema=$1 and table_name=$2 order by ORDINAL_POSITION asc"
-		rowSet, err = db.Query(sqlPreparedStmt, p.Schema(), table)
+		rowSet, err = db.Query(sqlPreparedStmt, p.schema(), table)
 		if err != nil {
-			log.WriteLog(log.BASIC, p.LogLevel(), log.BOTH, err.Error())
+			log.WriteLog(log.BASIC, p.logLevel(), log.BOTH, err.Error())
 			return err
 		}
 
@@ -112,7 +116,7 @@ func (p *PostgresqlDB) QueryDB(db *sql.DB) error {
 			}
 			err := rowSet.Scan(&column, &columnType)
 			if err != nil {
-				log.WriteLog(log.BASIC, p.LogLevel(), log.BOTH, err.Error())
+				log.WriteLog(log.BASIC, p.logLevel(), log.BOTH, err.Error())
 				return err
 			}
 
@@ -132,22 +136,22 @@ func (p *PostgresqlDB) QueryDB(db *sql.DB) error {
 			logColumns = append(logColumns, column)
 			logColumnTypes = append(logColumnTypes, columnType)
 		}
-		log.WriteLog(log.FULL, p.LogLevel(), log.LOGFILE, "[COLUMNS]: "+strings.Join(logColumns, ", "), "[DATATYPES]: "+strings.Join(logColumnTypes, ", "))
+		log.WriteLog(log.FULL, p.logLevel(), log.LOGFILE, "[COLUMNS]: "+strings.Join(logColumns, ", "), "[DATATYPES]: "+strings.Join(logColumnTypes, ", "))
 
 		// Compile checksum (d41d8cd98f00b204e9800998ecf8427e is the default result for an empty table)
 		sqlText := "select coalesce(md5(sum(('x' || substring(ROWHASH, 1, 8))::bit(32)::bigint)::text || sum(('x' || substring(ROWHASH, 9, 8))::bit(32)::bigint)::text ||sum(('x' || substring(ROWHASH, 17, 8))::bit(32)::bigint)::text || sum(('x' || substring(ROWHASH, 25, 8))::bit(32)::bigint)::text), 'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM from (select md5(%s) ROWHASH from %s.%s) t"
-		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, p.Schema(), table)
-		log.WriteLog(log.FULL, p.LogLevel(), log.LOGFILE, "[SQL]: "+sqlQueryStmt)
+		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, p.schema(), table)
+		log.WriteLog(log.FULL, p.logLevel(), log.LOGFILE, "[SQL]: "+sqlQueryStmt)
 
 		err = db.QueryRow(sqlQueryStmt).Scan(&checkSum)
 		if err != nil {
-			log.WriteLog(log.BASIC, p.LogLevel(), log.BOTH, err.Error())
+			log.WriteLog(log.BASIC, p.logLevel(), log.BOTH, err.Error())
 			return err
 		}
 
-		result := fmt.Sprintf("%s:%s", p.Instance()+"."+table, checkSum)
-		log.WriteLog(log.BASIC, p.LogLevel(), log.LOGFILE, "[Checksum]: "+result)
-		log.WriteLog(log.BASIC, p.LogLevel(), log.STDOUT, result)
+		result := fmt.Sprintf("%s:%s", p.instance()+"."+table, checkSum)
+		log.WriteLog(log.BASIC, p.logLevel(), log.LOGFILE, "[Checksum]: "+result)
+		log.WriteLog(log.BASIC, p.logLevel(), log.STDOUT, result)
 	}
 
 	return err

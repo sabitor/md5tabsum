@@ -7,10 +7,11 @@ import (
 	"strconv"
 	"strings"
 
+	// Import of the MS SQL Server driver to be used by the database/sql API
 	_ "github.com/denisenkom/go-mssqldb"
 )
 
-// MssqlDB defines the MS SQL server attributes
+// MssqlDB defines the attributes of the MS SQL Server DBMS
 type MssqlDB struct {
 	Cfg Config
 	Db  string
@@ -48,7 +49,7 @@ func (s *MssqlDB) database() string {
 	return s.Db
 }
 
-// ----------------------------------------------------------------------------
+// OpenDB implements the OpenDB method of the DBMS interface
 func (s *MssqlDB) OpenDB(password string) (*sql.DB, error) {
 	tableFilter := strings.Join(s.table(), ", ")
 	log.WriteLog(log.MEDIUM, s.logLevel(), log.LOGFILE, "[Instance]: "+s.instance(), "[Host]: "+s.host(), "[Port]: "+strconv.Itoa(s.port()), "[Database]: "+s.database(), "[User]: "+s.user(), "[Schema]: "+s.schema(), "[Table]: "+tableFilter)
@@ -61,10 +62,12 @@ func (s *MssqlDB) OpenDB(password string) (*sql.DB, error) {
 	return db, err
 }
 
+// CloseDB implements the CloseDB method of the DBMS interface
 func (s *MssqlDB) CloseDB(db *sql.DB) error {
 	return db.Close()
 }
 
+// QueryDB implements the QueryDB method of the DBMS interface
 func (s *MssqlDB) QueryDB(db *sql.DB) error {
 	var rowSet *sql.Rows
 	var tableNames []string
