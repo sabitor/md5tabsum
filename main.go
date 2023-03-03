@@ -12,11 +12,13 @@ import (
 )
 
 const (
+	// OK - human readable return code for success
 	OK = iota
+	// ERROR - human readbale return code for errors
 	ERROR
 
-	VERSION    = "1.1.1"
-	EXECUTABLE = "md5tabsum"
+	exeVersion = "1.1.1"
+	exeName    = "md5tabsum"
 )
 
 var (
@@ -86,7 +88,7 @@ func main() {
 
 	// Print version to STDOUT
 	if *version {
-		fmt.Printf("%s %s\n\n", EXECUTABLE, VERSION)
+		fmt.Printf("%s %s\n\n", exeName, exeVersion)
 		os.Exit(OK)
 	}
 
@@ -101,7 +103,7 @@ func main() {
 		log.StartLogService()
 		defer log.StopLogService()
 
-		log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[Version]: "+VERSION)
+		log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[Version]: "+exeVersion)
 		cfgPath, _ := filepath.Abs(*cfg)
 		log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[ConfigFile]: "+cfgPath)
 		log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[PasswordStore]: "+passwordStore)

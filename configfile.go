@@ -125,21 +125,20 @@ func setupEnv(cfg *string) error {
 	logFile := viper.GetString("Logfile")
 	if logFile == "" {
 		return errors.New("the Logfile parameter isn't configured")
-	} else {
-		err := createFileCheck(&logFile)
-		if err != nil {
-			return err
-		}
-		log.LogHandler(logFile)
 	}
+	err = createFileCheck(&logFile)
+	if err != nil {
+		return err
+	}
+	log.LogHandler(logFile)
+
 	passwordStore = viper.GetString("Passwordstore")
 	if passwordStore == "" {
 		return errors.New("the Passwordstore parameter isn't configured")
-	} else {
-		err := createFileCheck(&passwordStore)
-		if err != nil {
-			return err
-		}
+	}
+	err = createFileCheck(&passwordStore)
+	if err != nil {
+		return err
 	}
 
 	// Read DBMS instance config parameters
