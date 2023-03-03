@@ -21,14 +21,14 @@ const CIPHERKEY = "abcdefghijklmnopqrstuvwxyz012345"
 // writePasswordStore writes the encrypted passwords for each configured DBMS instance to the password store.
 // The password store location is specified in the config file.
 func writePasswordStore(flags int) error {
-	f, err := os.OpenFile(gPasswordStore, flags, 0600)
+	f, err := os.OpenFile(passwordStore, flags, 0600)
 	if err != nil {
 		log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, err.Error())
 		return err
 	}
 	defer f.Close()
 
-	for k, v := range gInstancePassword {
+	for k, v := range instancePassword {
 		record := encryptAES(CIPHERKEY, k+":"+v) + "\n"
 		f.Write([]byte(record))
 	}
@@ -37,7 +37,7 @@ func writePasswordStore(flags int) error {
 
 // readPasswordStore reads the encrypted instance passwords and stores them unencrypted in the global instance/password map.
 func readPasswordStore() error {
-	f, err := os.OpenFile(gPasswordStore, os.O_RDONLY, 0600)
+	f, err := os.OpenFile(passwordStore, os.O_RDONLY, 0600)
 	if err != nil {
 		return err
 	}
@@ -47,7 +47,7 @@ func readPasswordStore() error {
 	for scanner.Scan() {
 		record := scanner.Text() // get the line string
 		instance, password, _ := strings.Cut(decryptAES(CIPHERKEY, record), ":")
-		gInstancePassword[instance] = password
+		instancePassword[instance] = password
 	}
 
 	return err
@@ -60,7 +60,7 @@ func createInstance() error {
 		fmt.Printf("Enter password for instance %s: ", i)
 		password, _ = term.ReadPassword(0)
 		fmt.Printf("\n")
-		gInstancePassword[i] = string(password)
+		instancePassword[i] = string(password)
 	}
 
 	err := writePasswordStore(os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
@@ -77,11 +77,11 @@ func deleteInstance(instance *string) error {
 	if err != nil {
 		return err
 	}
-	if _, isValid := gInstancePassword[*instance]; !isValid {
+	if _, isValid := instancePassword[*instance]; !isValid {
 		log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "The specified instance doesn't exist in the password store.")
 		os.Exit(ERROR)
 	}
-	delete(gInstancePassword, *instance)
+	delete(instancePassword, *instance)
 
 	err = writePasswordStore(os.O_WRONLY | os.O_TRUNC)
 	if err != nil {
@@ -97,7 +97,7 @@ func addInstance(instance *string) error {
 	if err != nil {
 		return err
 	}
-	if _, isValid := gInstancePassword[*instance]; isValid {
+	if _, isValid := instancePassword[*instance]; isValid {
 		log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "The specified instance already exists in the password store.")
 		os.Exit(ERROR)
 	}
@@ -106,7 +106,7 @@ func addInstance(instance *string) error {
 	fmt.Printf("Enter password for instance %s: ", *instance)
 	password, _ = term.ReadPassword(0)
 	fmt.Printf("\n")
-	gInstancePassword[*instance] = string(password)
+	instancePassword[*instance] = string(password)
 
 	err = writePasswordStore(os.O_WRONLY | os.O_TRUNC)
 	if err != nil {
@@ -122,7 +122,7 @@ func updateInstance(instance *string) error {
 	if err != nil {
 		return err
 	}
-	if _, isValid := gInstancePassword[*instance]; !isValid {
+	if _, isValid := instancePassword[*instance]; !isValid {
 		log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "The specified instance doesn't exist in the password store.")
 		os.Exit(ERROR)
 	}
@@ -131,7 +131,7 @@ func updateInstance(instance *string) error {
 	fmt.Printf("Enter new password for instance %s: ", *instance)
 	password, _ = term.ReadPassword(0)
 	fmt.Printf("\n")
-	gInstancePassword[*instance] = string(password)
+	instancePassword[*instance] = string(password)
 
 	err = writePasswordStore(os.O_WRONLY | os.O_TRUNC)
 	if err != nil {
@@ -148,7 +148,7 @@ func showInstance() error {
 		return err
 	}
 
-	for k := range gInstancePassword {
+	for k := range instancePassword {
 		log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, k)
 	}
 
