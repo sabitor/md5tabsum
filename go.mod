@@ -2,6 +2,8 @@ module md5tabsum
 
 go 1.18
 
+replace github.com/sabitor/simplelog => ../simplelog
+
 require (
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/exasol/exasol-driver-go v0.4.7
@@ -11,6 +13,7 @@ require (
 	github.com/spf13/viper v1.15.0
 	github.com/syrinsecurity/gologger v1.2.0
 	golang.org/x/term v0.5.0
+    github.com/sabitor/simplelog v0.0.0
 )
 
 require (
