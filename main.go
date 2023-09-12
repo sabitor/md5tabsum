@@ -15,11 +15,11 @@ import (
 )
 
 const (
-	OK = iota
-	ERROR
+	ok = iota
+	error
 
-	VERSION    = "1.1.1"
-	EXECUTABLE = "md5tabsum"
+	version    = "1.1.1"
+	executable = "md5tabsum"
 )
 
 var (
@@ -53,15 +53,14 @@ func parseCmdArgs() (*string, *bool, *string, *string) {
 }
 
 // compileMD5CheckSum encapsulates the workflow how to compile the MD5 checksum of a database table.
-// The steps are: 1) open a database connection, 2) execution of SQL commands, 3) close database connection.
-func compileMD5CheckSum(instance string, wg *sync.WaitGroup, rcChan chan<- int) {
+func compileMD5CheckSum(instance string, wg *sync.WaitGroup, result chan<- int) {
 	defer wg.Done()
 
 	// open database connection
 	password := gInstancePassword[instance]
 	db, err := instanceName(instance).OpenDB(password)
 	if err != nil {
-		rcChan <- ERROR
+		result <- error
 		return
 	}
 	// close database connection
@@ -69,11 +68,11 @@ func compileMD5CheckSum(instance string, wg *sync.WaitGroup, rcChan chan<- int) 
 	// query database
 	err = instanceName(instance).QueryDB(db)
 	if err != nil {
-		rcChan <- ERROR
+		result <- error
 		return
 	}
 	// success
-	rcChan <- OK
+	result <- ok
 }
 
 // ----------------------------------------------------------------------------
@@ -81,39 +80,39 @@ func main() {
 	var rc int
 	var wg sync.WaitGroup
 
+	sLog.Startup("md5tabsum.log", true, 100)
+	defer sLog.Shutdown(false)
+
 	// Parse command line arguments
 	cfg, version, passwordstore, instance := parseCmdArgs()
 
 	// Print version to STDOUT
 	if *version {
-		fmt.Printf("%s %s\n\n", EXECUTABLE, VERSION)
-		os.Exit(OK)
+		fmt.Printf("%s %s\n\n", executable, version)
+		os.Exit(ok)
 	}
 
 	// Read config file
 	if err := setupEnv(cfg); err != nil {
 		// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, err.Error())
-		sLog.WriteToStdout("", err.Error())
-		os.Exit(ERROR)
+		sLog.Write(sLog.STDOUT, err.Error())
+		os.Exit(error)
 	}
-
-	sLog.StartService("md5tabsum.log", 10)
-	defer sLog.StopService()
 
 	if *passwordstore == "" {
 		// log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[Version]: "+VERSION)
-		sLog.WriteToFile("", "[Version]: "+VERSION)
+		sLog.Write(sLog.FILE, "[Version]:", version)
 		cfgPath, _ := filepath.Abs(*cfg)
 		// log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[ConfigFile]: "+cfgPath)
-		sLog.WriteToFile("", "[ConfigFile]: "+cfgPath)
+		sLog.Write(sLog.FILE, "[ConfigFile]:", cfgPath)
 		// log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[PasswordStore]: "+gPasswordStore)
-		sLog.WriteToFile("", "[PasswordStore]: "+gPasswordStore)
+		sLog.Write(sLog.FILE, "[PasswordStore]:", gPasswordStore)
 
 		// Read instance passwords from password store
 		if err := readPasswordStore(); err != nil {
 			// log.WriteLog(log.BASIC, log.BASIC, log.BOTH, err.Error())
-			sLog.WriteToMultiple("", err.Error())
-			os.Exit(ERROR)
+			sLog.Write(sLog.MULTI, err.Error())
+			os.Exit(error)
 		}
 
 		// Compile MD5 table checksum for all configured DBMS instances
@@ -131,7 +130,7 @@ func main() {
 		}
 
 		// log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[Rc]: "+strconv.Itoa(rc))
-		sLog.WriteToFile("", "[Rc]: "+strconv.Itoa(rc))
+		sLog.Write(sLog.FILE, "[Rc]: "+strconv.Itoa(rc))
 
 		// STILL REQUIRED? CHECK!
 		// Wait for the last log entry to be written
@@ -140,38 +139,39 @@ func main() {
 		// -- Password store management --
 		if *passwordstore == "create" {
 			if err := createInstance(); err != nil {
-				os.Exit(ERROR)
+				os.Exit(error)
 			}
 		} else if *passwordstore == "add" {
 			if *instance == "" {
+				fmt.Println("pech")
 				// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "To add an instance and its password in the password store the instance command option '-i <instance name>' is required.")
-				sLog.WriteToStdout("", "To add an instance and its password in the password store the instance command option '-i <instance name>' is required.")
-				os.Exit(ERROR)
+				sLog.Write(sLog.STDOUT, "To add an instance and its password in the password store the instance command option '-i <instance name>' is required.")
+				os.Exit(error)
 			}
 			if err := addInstance(instance); err != nil {
-				os.Exit(ERROR)
+				os.Exit(error)
 			}
 		} else if *passwordstore == "delete" {
 			if *instance == "" {
 				// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "To delete an instance and its password from the password store the instance command option '-i <instance name>' is required.")
-				sLog.WriteToStdout("", "To delete an instance and its password from the password store the instance command option '-i <instance name>' is required.")
-				os.Exit(ERROR)
+				sLog.Write(sLog.STDOUT, "To delete an instance and its password from the password store the instance command option '-i <instance name>' is required.")
+				os.Exit(error)
 			}
 			if err := deleteInstance(instance); err != nil {
-				os.Exit(ERROR)
+				os.Exit(error)
 			}
 		} else if *passwordstore == "update" {
 			if *instance == "" {
 				// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "To update an instance password in the password store the instance command option '-i <instance name>' is required.")
-				sLog.WriteToStdout("", "To update an instance password in the password store the instance command option '-i <instance name>' is required.")
-				os.Exit(ERROR)
+				sLog.Write(sLog.STDOUT, "To update an instance password in the password store the instance command option '-i <instance name>' is required.")
+				os.Exit(error)
 			}
 			if err := updateInstance(instance); err != nil {
-				os.Exit(ERROR)
+				os.Exit(error)
 			}
 		} else if *passwordstore == "show" {
 			if err := showInstance(); err != nil {
-				os.Exit(ERROR)
+				os.Exit(error)
 			}
 		}
 	}
