@@ -3,12 +3,13 @@ package main
 import (
 	"errors"
 	"md5tabsum/dbms"
-	"md5tabsum/log"
-	"os"
+	//"md5tabsum/log"
+	// "os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	sLog "github.com/sabitor/simplelog"
 	"github.com/spf13/viper"
 )
 
@@ -99,16 +100,16 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 }
 
 // createFileCheck checks if the specified file can be created
-func createFileCheck(fileName *string) error {
-	file, err := os.OpenFile(*fileName, os.O_CREATE, 0600)
-	if err != nil {
-		// permission denied
-		return err
-	}
-	defer file.Close()
+// func createFileCheck(fileName *string) error {
+// 	file, err := os.OpenFile(*fileName, os.O_CREATE, 0600)
+// 	if err != nil {
+// 		// permission denied
+// 		return err
+// 	}
+// 	defer file.Close()
 
-	return err
-}
+// 	return err
+// }
 
 // setupEnv reads the config file and sets the instance config for all active instances
 func setupEnv(cfg *string) error {
@@ -121,29 +122,31 @@ func setupEnv(cfg *string) error {
 		return err
 	}
 
-	// Read common config parameters
+	// read common config parameters
 	logFile := viper.GetString("Logfile")
 	if logFile == "" {
 		return errors.New("the Logfile parameter isn't configured")
 	} else {
-		err := createFileCheck(&logFile)
-		if err != nil {
-			return err
-		}
-		log.LogHandler(logFile)
+		// err := createFileCheck(&logFile)
+		// if err != nil {
+		// 	return err
+		// }
+		// log.LogHandler(logFile)
+		// sLog.Startup(100)
+		sLog.SetupLog(logFile, true)
 	}
-	passwordStore := viper.GetString("Passwordstore")
-	if passwordStore == "" {
+	passwordStoreFile = viper.GetString("Passwordstore")
+	if passwordStoreFile == "" {
 		return errors.New("the Passwordstore parameter isn't configured")
-	} else {
-		err := createFileCheck(&passwordStore)
-		if err != nil {
-			return err
-		}
-		gPasswordStore = passwordStore
 	}
+	//else {
+	// err := createFileCheck(&passwordStoreFile)
+	// if err != nil {
+	// 	return err
+	// }
+	// }
 
-	// Read DBMS instance config parameters
+	// read DBMS instance config parameters
 	for _, v := range supportedDbms {
 		cfgFirstLevelKey := viper.GetStringMapString(v) // all cfg instances (instance1, instance2, ...) are assigned to a DBMS name (exasol, oracle, ...)
 		dbmsInstance := ""
