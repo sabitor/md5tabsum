@@ -4,34 +4,50 @@ import (
 	"flag"
 	"fmt"
 	"md5tabsum/dbms"
+	"strings"
+
 	// "md5tabsum/log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
+
 	// "time"
 
 	sLog "github.com/sabitor/simplelog"
 )
 
+// message catalog
 const (
-	ok = iota
-	error
+	mm000 = "config file name"
+	mm001 = "instance name\n  The defined format is <DBMS>.<instance ID>"
+	mm002 = "password store command\n  create - creates the password store based on the instances stored in the config file\n  add    - adds a specific instance and its password in the password store\n  update - updates the password of a specific instance in the password store\n  delete - deletes a specific instance and its password from the password store\n  show   - shows all stored instances in the password store"
+	mm003 = "version information"
+	mm004 = "to add instance credentials in the password store the command option '-i <instance name>' is required"
+	mm005 = "to delete instance credentials from the password store the command option '-i <instance name>' is required"
+	mm006 = "to update instance credentials in the password store the command option '-i <instance name>' is required"
+	mm007 = "the specified instance doesn't exist in the password store"
+	mm008 = "the specified instance already exists in the password store"
+	mm009 = "something went wrong while determining the nonce size"
+	mm010 = "unsupported password store command specified"
+)
 
-	version    = "1.1.1"
-	executable = "md5tabsum"
+const (
+	Ok = iota
+	Error
+)
+
+const (
+	programVersion string = "1.2.1"
+	executableName string = "md5tabsum"
 )
 
 var (
-	// password store file
-	gPasswordStore string
-	// map to store instances and their password
-	gInstancePassword = make(map[string]string)
+	passwordStoreFile string
+	instancePassword  = make(map[string]string) // map to store instances and their password
 )
 
 // instanceName validates the existence of a given DBMS instance name in the instaneToConfig map.
-// If the DBMS instance was found, the instance name is returned.
-// If the DBMS instance wasn't found, the program will terminate.
 func instanceName(instance string) dbms.Database {
 	if v, ok := instanceToConfig[instance]; ok {
 		return v
@@ -41,15 +57,15 @@ func instanceName(instance string) dbms.Database {
 }
 
 // parseCmdArgs parses for command line arguments.
-// If nothing was specified, corresponding defaults are going to be used.
-func parseCmdArgs() (*string, *bool, *string, *string) {
-	cfg := flag.String("c", "md5tabsum.cfg", "config file name")
-	version := flag.Bool("v", false, "version information")
-	password := flag.String("p", "", "password store action\n  create - creates the password store based on the instances stored in the config file\n  add    - adds a specific instance and its password in the password store\n  update - updates the password of a specific instance in the password store\n  delete - deletes a specific instance and its password from the password store\n  show   - shows all stored instances in the password store")
-	instance := flag.String("i", "", "instance name\n  The defined format is <DBMS>.<instance ID>")
+// If nothing was specified, corresponding defaults are used.
+func parseCmdArgs() (*string, *string, *string, *bool) {
+	cfg := flag.String("c", "md5tabsum.cfg", mm000)
+	instance := flag.String("i", "", mm001)
+	password := flag.String("p", "", mm002)
+	version := flag.Bool("v", false, mm003)
 	flag.Parse()
 
-	return cfg, version, password, instance
+	return cfg, instance, password, version
 }
 
 // compileMD5CheckSum encapsulates the workflow how to compile the MD5 checksum of a database table.
@@ -57,10 +73,10 @@ func compileMD5CheckSum(instance string, wg *sync.WaitGroup, result chan<- int) 
 	defer wg.Done()
 
 	// open database connection
-	password := gInstancePassword[instance]
+	password := instancePassword[instance]
 	db, err := instanceName(instance).OpenDB(password)
 	if err != nil {
-		result <- error
+		result <- Error
 		return
 	}
 	// close database connection
@@ -68,64 +84,109 @@ func compileMD5CheckSum(instance string, wg *sync.WaitGroup, result chan<- int) 
 	// query database
 	err = instanceName(instance).QueryDB(db)
 	if err != nil {
-		result <- error
+		result <- Error
 		return
 	}
 	// success
-	result <- ok
+	result <- Ok
 }
 
-// ----------------------------------------------------------------------------
-func main() {
+// TBD docu
+func run() int {
 	var rc int
 	var wg sync.WaitGroup
 
-	sLog.Startup("md5tabsum.log", true, 100)
+	sLog.Startup(100)
 	defer sLog.Shutdown(false)
 
-	// Parse command line arguments
-	cfg, version, passwordstore, instance := parseCmdArgs()
-
-	// Print version to STDOUT
+	// parse command line arguments
+	cfg, instance, passwordStore, version := parseCmdArgs()
 	if *version {
-		fmt.Printf("%s %s\n\n", executable, version)
-		os.Exit(ok)
+		fmt.Printf("%s %s\n", executableName, programVersion)
+		return Ok
 	}
 
-	// Read config file
+	// read config file
 	if err := setupEnv(cfg); err != nil {
 		// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, err.Error())
 		sLog.Write(sLog.STDOUT, err.Error())
-		os.Exit(error)
+		return Error
 	}
 
-	if *passwordstore == "" {
+	*passwordStore = strings.ToLower(*passwordStore)
+	if *passwordStore != "" {
+		if *passwordStore == "create" {
+			if err := createInstance(); err != nil {
+				// sLog.Write(sLog.STDOUT, err)
+				return Error
+			}
+		} else if *passwordStore == "add" {
+			if *instance == "" {
+				// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "To add an instance and its password in the password store the instance command option '-i <instance name>' is required.")
+				sLog.Write(sLog.STDOUT, mm004)
+				return Error
+			}
+			if err := addInstance(instance); err != nil {
+				sLog.Write(sLog.STDOUT, err)
+				return Error
+			}
+		} else if *passwordStore == "delete" {
+			if *instance == "" {
+				// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "To delete an instance and its password from the password store the instance command option '-i <instance name>' is required.")
+				sLog.Write(sLog.STDOUT, mm005)
+				return Error
+			}
+			if err := deleteInstance(instance); err != nil {
+				sLog.Write(sLog.STDOUT, err)
+				return Error
+			}
+		} else if *passwordStore == "update" {
+			if *instance == "" {
+				// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "To update an instance password in the password store the instance command option '-i <instance name>' is required.")
+				sLog.Write(sLog.STDOUT, mm006)
+				return Error
+			}
+			if err := updateInstance(instance); err != nil {
+				sLog.Write(sLog.STDOUT, err)
+				return Error
+			}
+		} else if *passwordStore == "show" {
+			if err := showInstance(); err != nil {
+				sLog.Write(sLog.STDOUT, err)
+				return Error
+			}
+		} else {
+			// unsupported command found
+			sLog.Write(sLog.STDOUT, mm010)
+			return Error
+		}
+	} else {
 		// log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[Version]: "+VERSION)
 		sLog.Write(sLog.FILE, "[Version]:", version)
 		cfgPath, _ := filepath.Abs(*cfg)
 		// log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[ConfigFile]: "+cfgPath)
 		sLog.Write(sLog.FILE, "[ConfigFile]:", cfgPath)
 		// log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[PasswordStore]: "+gPasswordStore)
-		sLog.Write(sLog.FILE, "[PasswordStore]:", gPasswordStore)
+		sLog.Write(sLog.FILE, "[PasswordStore]:", passwordStoreFile)
 
 		// Read instance passwords from password store
 		if err := readPasswordStore(); err != nil {
 			// log.WriteLog(log.BASIC, log.BASIC, log.BOTH, err.Error())
 			sLog.Write(sLog.MULTI, err.Error())
-			os.Exit(error)
+			return Error
 		}
 
-		// Compile MD5 table checksum for all configured DBMS instances
-		rcChan := make(chan int, len(instanceToConfig))
+		// compile MD5 table checksum for all configured DBMS instances
+		results := make(chan int, len(instanceToConfig))
 		for k := range instanceToConfig {
 			wg.Add(1)
-			go compileMD5CheckSum(k, &wg, rcChan)
+			go compileMD5CheckSum(k, &wg, results)
 		}
 		wg.Wait()
-		close(rcChan)
+		close(results)
 
-		// Calculate return code (rc of all go routines are considered)
-		for i := range rcChan {
+		// calculate return code (rc of all go routines are considered)
+		for i := range results {
 			rc |= i
 		}
 
@@ -135,46 +196,12 @@ func main() {
 		// STILL REQUIRED? CHECK!
 		// Wait for the last log entry to be written
 		// time.Sleep(time.Millisecond * 100)
-	} else {
-		// -- Password store management --
-		if *passwordstore == "create" {
-			if err := createInstance(); err != nil {
-				os.Exit(error)
-			}
-		} else if *passwordstore == "add" {
-			if *instance == "" {
-				fmt.Println("pech")
-				// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "To add an instance and its password in the password store the instance command option '-i <instance name>' is required.")
-				sLog.Write(sLog.STDOUT, "To add an instance and its password in the password store the instance command option '-i <instance name>' is required.")
-				os.Exit(error)
-			}
-			if err := addInstance(instance); err != nil {
-				os.Exit(error)
-			}
-		} else if *passwordstore == "delete" {
-			if *instance == "" {
-				// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "To delete an instance and its password from the password store the instance command option '-i <instance name>' is required.")
-				sLog.Write(sLog.STDOUT, "To delete an instance and its password from the password store the instance command option '-i <instance name>' is required.")
-				os.Exit(error)
-			}
-			if err := deleteInstance(instance); err != nil {
-				os.Exit(error)
-			}
-		} else if *passwordstore == "update" {
-			if *instance == "" {
-				// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "To update an instance password in the password store the instance command option '-i <instance name>' is required.")
-				sLog.Write(sLog.STDOUT, "To update an instance password in the password store the instance command option '-i <instance name>' is required.")
-				os.Exit(error)
-			}
-			if err := updateInstance(instance); err != nil {
-				os.Exit(error)
-			}
-		} else if *passwordstore == "show" {
-			if err := showInstance(); err != nil {
-				os.Exit(error)
-			}
-		}
 	}
 
-	os.Exit(rc)
+	return rc
+}
+
+// main starts the application workflow
+func main() {
+	os.Exit(run())
 }
