@@ -1,4 +1,4 @@
-package dbms
+package main
 
 import (
 	"database/sql"
@@ -10,40 +10,40 @@ import (
 	"github.com/exasol/exasol-driver-go"
 )
 
-type ExasolDB struct {
-	Cfg Config
+type exasolDB struct {
+	cfg config
 }
 
-func (e *ExasolDB) LogLevel() int {
-	return e.Cfg.Loglevel
+func (e *exasolDB) LogLevel() int {
+	return e.cfg.loglevel
 }
 
-func (e *ExasolDB) Instance() string {
-	return e.Cfg.Instance
+func (e *exasolDB) Instance() string {
+	return e.cfg.instance
 }
 
-func (e *ExasolDB) Host() string {
-	return e.Cfg.Host
+func (e *exasolDB) Host() string {
+	return e.cfg.host
 }
 
-func (e *ExasolDB) Port() int {
-	return e.Cfg.Port
+func (e *exasolDB) Port() int {
+	return e.cfg.port
 }
 
-func (e *ExasolDB) User() string {
-	return e.Cfg.User
+func (e *exasolDB) User() string {
+	return e.cfg.user
 }
 
-func (e *ExasolDB) Schema() string {
-	return e.Cfg.Schema
+func (e *exasolDB) Schema() string {
+	return e.cfg.schema
 }
 
-func (e *ExasolDB) Table() []string {
-	return e.Cfg.Table
+func (e *exasolDB) Table() []string {
+	return e.cfg.table
 }
 
 // ----------------------------------------------------------------------------
-func (e *ExasolDB) OpenDB(password string) (*sql.DB, error) {
+func (e *exasolDB) openDB(password string) (*sql.DB, error) {
 	tableFilter := strings.Join(e.Table(), ", ")
 	log.WriteLog(log.MEDIUM, e.LogLevel(), log.LOGFILE, "[Instance]: "+e.Instance(), "[Host]: "+e.Host(), "[Port]: "+strconv.Itoa(e.Port()), "[User]: "+e.User(), "[Schema]: "+e.Schema(), "[Table]: "+tableFilter)
 	db, err := sql.Open("exasol", exasol.NewConfig(e.User(), password).Port(e.Port()).Host(e.Host()).ValidateServerCertificate(false).String())
@@ -54,11 +54,11 @@ func (e *ExasolDB) OpenDB(password string) (*sql.DB, error) {
 	return db, err
 }
 
-func (e *ExasolDB) CloseDB(db *sql.DB) error {
+func (e *exasolDB) closeDB(db *sql.DB) error {
 	return db.Close()
 }
 
-func (e *ExasolDB) QueryDB(db *sql.DB) error {
+func (e *exasolDB) queryDB(db *sql.DB) error {
 	var rowSet *sql.Rows
 	var tableNames []string
 	var checkSum string

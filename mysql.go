@@ -1,4 +1,4 @@
-package dbms
+package main
 
 import (
 	"database/sql"
@@ -10,40 +10,40 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-type MysqlDB struct {
-	Cfg Config
+type mysqlDB struct {
+	cfg config
 }
 
-func (m *MysqlDB) LogLevel() int {
-	return m.Cfg.Loglevel
+func (m *mysqlDB) LogLevel() int {
+	return m.cfg.loglevel
 }
 
-func (m *MysqlDB) Instance() string {
-	return m.Cfg.Instance
+func (m *mysqlDB) Instance() string {
+	return m.cfg.instance
 }
 
-func (m *MysqlDB) Host() string {
-	return m.Cfg.Host
+func (m *mysqlDB) Host() string {
+	return m.cfg.host
 }
 
-func (m *MysqlDB) Port() int {
-	return m.Cfg.Port
+func (m *mysqlDB) Port() int {
+	return m.cfg.port
 }
 
-func (m *MysqlDB) User() string {
-	return m.Cfg.User
+func (m *mysqlDB) User() string {
+	return m.cfg.user
 }
 
-func (m *MysqlDB) Schema() string {
-	return m.Cfg.Schema
+func (m *mysqlDB) Schema() string {
+	return m.cfg.schema
 }
 
-func (m *MysqlDB) Table() []string {
-	return m.Cfg.Table
+func (m *mysqlDB) Table() []string {
+	return m.cfg.table
 }
 
 // ----------------------------------------------------------------------------
-func (m *MysqlDB) OpenDB(password string) (*sql.DB, error) {
+func (m *mysqlDB) openDB(password string) (*sql.DB, error) {
 	sqlMode := "ANSI_QUOTES"
 	tableFilter := strings.Join(m.Table(), ", ")
 	log.WriteLog(log.MEDIUM, m.LogLevel(), log.LOGFILE, "[Instance]: "+m.Instance(), "[Host]: "+m.Host(), "[Port]: "+strconv.Itoa(m.Port()), "[User]: "+m.User(), "[Schema]: "+m.Schema(), "[Table]: "+tableFilter)
@@ -56,11 +56,11 @@ func (m *MysqlDB) OpenDB(password string) (*sql.DB, error) {
 	return db, err
 }
 
-func (m *MysqlDB) CloseDB(db *sql.DB) error {
+func (m *mysqlDB) closeDB(db *sql.DB) error {
 	return db.Close()
 }
 
-func (m *MysqlDB) QueryDB(db *sql.DB) error {
+func (m *mysqlDB) queryDB(db *sql.DB) error {
 	var rowSet *sql.Rows
 	var tableNames []string
 	var checkSum string

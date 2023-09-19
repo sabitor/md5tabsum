@@ -1,4 +1,4 @@
-package dbms
+package main
 
 import (
 	"database/sql"
@@ -10,45 +10,45 @@ import (
 	go_ora "github.com/sijms/go-ora/v2"
 )
 
-type OracleDB struct {
-	Cfg Config
+type oracleDB struct {
+	cfg config
 	Srv string
 }
 
-func (o *OracleDB) LogLevel() int {
-	return o.Cfg.Loglevel
+func (o *oracleDB) LogLevel() int {
+	return o.cfg.loglevel
 }
 
-func (o *OracleDB) Instance() string {
-	return o.Cfg.Instance
+func (o *oracleDB) Instance() string {
+	return o.cfg.instance
 }
 
-func (o *OracleDB) Host() string {
-	return o.Cfg.Host
+func (o *oracleDB) Host() string {
+	return o.cfg.host
 }
 
-func (o *OracleDB) Port() int {
-	return o.Cfg.Port
+func (o *oracleDB) Port() int {
+	return o.cfg.port
 }
 
-func (o *OracleDB) User() string {
-	return o.Cfg.User
+func (o *oracleDB) User() string {
+	return o.cfg.user
 }
 
-func (o *OracleDB) Schema() string {
-	return o.Cfg.Schema
+func (o *oracleDB) Schema() string {
+	return o.cfg.schema
 }
 
-func (o *OracleDB) Table() []string {
-	return o.Cfg.Table
+func (o *oracleDB) Table() []string {
+	return o.cfg.table
 }
 
-func (o *OracleDB) Service() string {
+func (o *oracleDB) Service() string {
 	return o.Srv
 }
 
 // ----------------------------------------------------------------------------
-func (o *OracleDB) OpenDB(password string) (*sql.DB, error) {
+func (o *oracleDB) openDB(password string) (*sql.DB, error) {
 	// urlOptions := map[string]string{
 	// 	"trace file": "trace.log",
 	// }
@@ -64,11 +64,11 @@ func (o *OracleDB) OpenDB(password string) (*sql.DB, error) {
 	return db, err
 }
 
-func (o *OracleDB) CloseDB(db *sql.DB) error {
+func (o *oracleDB) closeDB(db *sql.DB) error {
 	return db.Close()
 }
 
-func (o *OracleDB) QueryDB(db *sql.DB) error {
+func (o *oracleDB) queryDB(db *sql.DB) error {
 	var rowSet *sql.Rows
 	var tableNames []string
 	var checkSum string

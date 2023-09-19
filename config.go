@@ -2,14 +2,12 @@ package main
 
 import (
 	"errors"
-	"md5tabsum/dbms"
-	//"md5tabsum/log"
-	// "os"
+	// "md5tabsum/dbms"
 	"path/filepath"
 	"strconv"
 	"strings"
 
-	sLog "github.com/sabitor/simplelog"
+	"github.com/sabitor/simplelog"
 	"github.com/spf13/viper"
 )
 
@@ -17,85 +15,97 @@ var (
 	// Map to store active instances and their assigned configuration
 	// mDbms[Key -> DBMS instance name : Value -> DBMS instance config]
 	// Example: mDbms["exasol.instance1":exasolDB DBMS interface]
-	instanceToConfig = make(map[string]dbms.Database)
+	instanceToConfig = make(map[string]database)
 	// List of all supported DBMS
 	supportedDbms = []string{"exasol", "mysql", "mssql", "oracle", "postgresql"}
 )
+
+// Collection of DBMS config attributes
+type config struct {
+	loglevel int
+	instance string
+	host     string
+	port     int
+	user     string
+	schema   string
+	table    []string
+}
 
 // setInstanceConfig sets the instance parameters according the parsed config file section
 func setInstanceConfig(instance string, v *viper.Viper) {
 	var logLvl int
 	switch strings.ToUpper(v.GetString("loglevel")) {
-	case "BASIC":
+	case "INFO":
 		logLvl = 0
-	case "MEDIUM":
+	case "DEBUG":
 		logLvl = 1
-	case "FULL":
+	case "TRACE":
 		logLvl = 2
 	default:
-		panic("An unsupported log detail level has been detected in the config file!")
+		panic(mm011)
 	}
+
 	port, _ := strconv.Atoi(v.GetString("port"))
 	allTables := strings.Split(strings.ReplaceAll(strings.ReplaceAll(v.GetString("table"), " ", ""), "\\", ""), ",") // replace " " and "\"" by ""
 	cfgSectionParts := strings.Split(instance, ".")
 	switch cfgSectionParts[0] {
 	case "exasol":
-		instanceToConfig[instance] = &dbms.ExasolDB{
-			Cfg: dbms.Config{Loglevel: logLvl,
-				Instance: instance,
-				Host:     v.GetString("host"),
-				Port:     port,
-				User:     v.GetString("user"),
-				Schema:   v.GetString("schema"),
-				Table:    allTables},
+		instanceToConfig[instance] = &exasolDB{
+			cfg: config{loglevel: logLvl,
+				instance: instance,
+				host:     v.GetString("host"),
+				port:     port,
+				user:     v.GetString("user"),
+				schema:   v.GetString("schema"),
+				table:    allTables},
 		}
 	case "oracle":
-		instanceToConfig[instance] = &dbms.OracleDB{
-			Cfg: dbms.Config{Loglevel: logLvl,
-				Instance: instance,
-				Host:     v.GetString("host"),
-				Port:     port,
-				User:     v.GetString("user"),
-				Schema:   v.GetString("schema"),
-				Table:    allTables},
+		instanceToConfig[instance] = &oracleDB{
+			cfg: config{loglevel: logLvl,
+				instance: instance,
+				host:     v.GetString("host"),
+				port:     port,
+				user:     v.GetString("user"),
+				schema:   v.GetString("schema"),
+				table:    allTables},
 			Srv: v.GetString("service"),
 		}
 	case "mysql":
-		instanceToConfig[instance] = &dbms.MysqlDB{
-			Cfg: dbms.Config{Loglevel: logLvl,
-				Instance: instance,
-				Host:     v.GetString("host"),
-				Port:     port,
-				User:     v.GetString("user"),
-				Schema:   v.GetString("schema"),
-				Table:    allTables},
+		instanceToConfig[instance] = &mysqlDB{
+			cfg: config{loglevel: logLvl,
+				instance: instance,
+				host:     v.GetString("host"),
+				port:     port,
+				user:     v.GetString("user"),
+				schema:   v.GetString("schema"),
+				table:    allTables},
 		}
 	case "postgresql":
-		instanceToConfig[instance] = &dbms.PostgresqlDB{
-			Cfg: dbms.Config{Loglevel: logLvl,
-				Instance: instance,
-				Host:     v.GetString("host"),
-				Port:     port,
-				User:     v.GetString("user"),
-				Schema:   v.GetString("schema"),
-				Table:    allTables},
+		instanceToConfig[instance] = &postgresqlDB{
+			cfg: config{loglevel: logLvl,
+				instance: instance,
+				host:     v.GetString("host"),
+				port:     port,
+				user:     v.GetString("user"),
+				schema:   v.GetString("schema"),
+				table:    allTables},
 			Db: v.GetString("database"),
 		}
 	case "mssql":
-		instanceToConfig[instance] = &dbms.MssqlDB{
-			Cfg: dbms.Config{Loglevel: logLvl,
-				Instance: instance,
-				Host:     v.GetString("host"),
-				Port:     port,
-				User:     v.GetString("user"),
-				Schema:   v.GetString("schema"),
-				Table:    allTables,
+		instanceToConfig[instance] = &mssqlDB{
+			cfg: config{loglevel: logLvl,
+				instance: instance,
+				host:     v.GetString("host"),
+				port:     port,
+				user:     v.GetString("user"),
+				schema:   v.GetString("schema"),
+				table:    allTables,
 			},
 			Db: v.GetString("database"),
 		}
 	// CHECK: Add support for other DBMS
 	default:
-		panic("Something went wrong - this branch shouldn't be reached!")
+		panic(mm012)
 	}
 }
 
@@ -125,7 +135,7 @@ func setupEnv(cfg *string) error {
 	// read common config parameters
 	logFile := viper.GetString("Logfile")
 	if logFile == "" {
-		return errors.New("the Logfile parameter isn't configured")
+		return errors.New(mm013)
 	} else {
 		// err := createFileCheck(&logFile)
 		// if err != nil {
@@ -133,11 +143,11 @@ func setupEnv(cfg *string) error {
 		// }
 		// log.LogHandler(logFile)
 		// sLog.Startup(100)
-		sLog.SetupLog(logFile, true)
+		simplelog.SetupLog(logFile, true)
 	}
 	passwordStoreFile = viper.GetString("Passwordstore")
 	if passwordStoreFile == "" {
-		return errors.New("the Passwordstore parameter isn't configured")
+		return errors.New(mm014)
 	}
 	//else {
 	// err := createFileCheck(&passwordStoreFile)

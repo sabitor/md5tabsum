@@ -3,7 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
-	"md5tabsum/dbms"
+	// "md5tabsum/config"
+	// "md5tabsum/dbms"
 	"strings"
 
 	// "md5tabsum/log"
@@ -30,36 +31,34 @@ const (
 	mm008 = "the specified instance already exists in the password store"
 	mm009 = "something went wrong while determining the nonce size"
 	mm010 = "unsupported password store command specified"
+	mm011 = "unsupported log level parameter specified - supported parameters are INFO, DEBUG and TRACE"
+	mm012 = "this branch shouldn't be reached"
+	mm013 = "the Logfile parameter isn't configured"
+	mm014 = "the Passwordstore parameter isn't configured"
 )
 
 const (
-	Ok = iota
-	Error
+	md5Ok = iota
+	md5Error
 )
 
 const (
 	programVersion string = "1.2.1"
 	executableName string = "md5tabsum"
+	configName     string = "md5tabsum.cfg"
 )
 
-var (
-	passwordStoreFile string
-	instancePassword  = make(map[string]string) // map to store instances and their password
+const (
+	// specifies the log level
+	INFO  = iota // the standard log level
+	DEBUG        // less granular compared to the TRACE level
+	TRACE        // the most fine-grained information
 )
-
-// instanceName validates the existence of a given DBMS instance name in the instaneToConfig map.
-func instanceName(instance string) dbms.Database {
-	if v, ok := instanceToConfig[instance]; ok {
-		return v
-	}
-	msg := "key '" + instance + "' doesn't exist"
-	panic(msg)
-}
 
 // parseCmdArgs parses for command line arguments.
-// If nothing was specified, corresponding defaults are used.
+// If nothing was specified, defined defaults are used.
 func parseCmdArgs() (*string, *string, *string, *bool) {
-	cfg := flag.String("c", "md5tabsum.cfg", mm000)
+	cfg := flag.String("c", configName, mm000)
 	instance := flag.String("i", "", mm001)
 	password := flag.String("p", "", mm002)
 	version := flag.Bool("v", false, mm003)
@@ -68,49 +67,50 @@ func parseCmdArgs() (*string, *string, *string, *bool) {
 	return cfg, instance, password, version
 }
 
-// compileMD5CheckSum encapsulates the workflow how to compile the MD5 checksum of a database table.
-func compileMD5CheckSum(instance string, wg *sync.WaitGroup, result chan<- int) {
+// compileMD5TableSum encapsulates the workflow how to compile the MD5 checksum of a database table.
+func compileMD5TableSum(instance string, wg *sync.WaitGroup, result chan<- int) {
 	defer wg.Done()
 
 	// open database connection
 	password := instancePassword[instance]
-	db, err := instanceName(instance).OpenDB(password)
+	db, err := instanceName(instance).openDB(password)
 	if err != nil {
-		result <- Error
+		result <- md5Error
 		return
 	}
 	// close database connection
-	defer instanceName(instance).CloseDB(db)
+	defer instanceName(instance).closeDB(db)
 	// query database
-	err = instanceName(instance).QueryDB(db)
+	err = instanceName(instance).queryDB(db)
 	if err != nil {
-		result <- Error
+		result <- md5Error
 		return
 	}
 	// success
-	result <- Ok
+	result <- md5Ok
 }
 
-// TBD docu
+// run is the entry point of the application logic.
 func run() int {
 	var rc int
-	var wg sync.WaitGroup
 
+	// init log
 	sLog.Startup(100)
 	defer sLog.Shutdown(false)
+	sLog.SetPrefix(sLog.FILE, "#2006-01-02 15:04:05.000000#")
 
 	// parse command line arguments
 	cfg, instance, passwordStore, version := parseCmdArgs()
 	if *version {
 		fmt.Printf("%s %s\n", executableName, programVersion)
-		return Ok
+		return md5Ok
 	}
 
 	// read config file
 	if err := setupEnv(cfg); err != nil {
 		// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, err.Error())
 		sLog.Write(sLog.STDOUT, err.Error())
-		return Error
+		return md5Error
 	}
 
 	*passwordStore = strings.ToLower(*passwordStore)
@@ -118,69 +118,71 @@ func run() int {
 		if *passwordStore == "create" {
 			if err := createInstance(); err != nil {
 				// sLog.Write(sLog.STDOUT, err)
-				return Error
+				return md5Error
 			}
 		} else if *passwordStore == "add" {
 			if *instance == "" {
 				// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "To add an instance and its password in the password store the instance command option '-i <instance name>' is required.")
 				sLog.Write(sLog.STDOUT, mm004)
-				return Error
+				return md5Error
 			}
 			if err := addInstance(instance); err != nil {
 				sLog.Write(sLog.STDOUT, err)
-				return Error
+				return md5Error
 			}
 		} else if *passwordStore == "delete" {
 			if *instance == "" {
 				// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "To delete an instance and its password from the password store the instance command option '-i <instance name>' is required.")
 				sLog.Write(sLog.STDOUT, mm005)
-				return Error
+				return md5Error
 			}
 			if err := deleteInstance(instance); err != nil {
 				sLog.Write(sLog.STDOUT, err)
-				return Error
+				return md5Error
 			}
 		} else if *passwordStore == "update" {
 			if *instance == "" {
 				// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "To update an instance password in the password store the instance command option '-i <instance name>' is required.")
 				sLog.Write(sLog.STDOUT, mm006)
-				return Error
+				return md5Error
 			}
 			if err := updateInstance(instance); err != nil {
 				sLog.Write(sLog.STDOUT, err)
-				return Error
+				return md5Error
 			}
 		} else if *passwordStore == "show" {
 			if err := showInstance(); err != nil {
 				sLog.Write(sLog.STDOUT, err)
-				return Error
+				return md5Error
 			}
 		} else {
 			// unsupported command found
 			sLog.Write(sLog.STDOUT, mm010)
-			return Error
+			return md5Error
 		}
 	} else {
+		var wg sync.WaitGroup
+
 		// log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[Version]: "+VERSION)
-		sLog.Write(sLog.FILE, "[Version]:", version)
+		sLog.Write(sLog.FILE, "Version:", programVersion)
 		cfgPath, _ := filepath.Abs(*cfg)
 		// log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[ConfigFile]: "+cfgPath)
-		sLog.Write(sLog.FILE, "[ConfigFile]:", cfgPath)
+		sLog.Write(sLog.FILE, "ConfigFile:", cfgPath)
 		// log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[PasswordStore]: "+gPasswordStore)
-		sLog.Write(sLog.FILE, "[PasswordStore]:", passwordStoreFile)
+		sLog.Write(sLog.FILE, "PasswordStore:", passwordStoreFile)
 
 		// Read instance passwords from password store
 		if err := readPasswordStore(); err != nil {
 			// log.WriteLog(log.BASIC, log.BASIC, log.BOTH, err.Error())
 			sLog.Write(sLog.MULTI, err.Error())
-			return Error
+			return md5Error
 		}
 
 		// compile MD5 table checksum for all configured DBMS instances
 		results := make(chan int, len(instanceToConfig))
 		for k := range instanceToConfig {
 			wg.Add(1)
-			go compileMD5CheckSum(k, &wg, results)
+			go compileMD5TableSum(k, &wg, results)
 		}
 		wg.Wait()
 		close(results)
@@ -191,17 +193,13 @@ func run() int {
 		}
 
 		// log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[Rc]: "+strconv.Itoa(rc))
-		sLog.Write(sLog.FILE, "[Rc]: "+strconv.Itoa(rc))
-
-		// STILL REQUIRED? CHECK!
-		// Wait for the last log entry to be written
-		// time.Sleep(time.Millisecond * 100)
+		sLog.Write(sLog.FILE, "Return Code: "+strconv.Itoa(rc))
 	}
 
 	return rc
 }
 
-// main starts the application workflow
+// main starts the application workflow and returns the return code to the caller
 func main() {
 	os.Exit(run())
 }

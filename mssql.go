@@ -1,4 +1,4 @@
-package dbms
+package main
 
 import (
 	"database/sql"
@@ -10,45 +10,45 @@ import (
 	_ "github.com/denisenkom/go-mssqldb"
 )
 
-type MssqlDB struct {
-	Cfg Config
+type mssqlDB struct {
+	cfg config
 	Db  string
 }
 
-func (s *MssqlDB) LogLevel() int {
-	return s.Cfg.Loglevel
+func (s *mssqlDB) LogLevel() int {
+	return s.cfg.loglevel
 }
 
-func (s *MssqlDB) Instance() string {
-	return s.Cfg.Instance
+func (s *mssqlDB) Instance() string {
+	return s.cfg.instance
 }
 
-func (s *MssqlDB) Host() string {
-	return s.Cfg.Host
+func (s *mssqlDB) Host() string {
+	return s.cfg.host
 }
 
-func (s *MssqlDB) Port() int {
-	return s.Cfg.Port
+func (s *mssqlDB) Port() int {
+	return s.cfg.port
 }
 
-func (s *MssqlDB) User() string {
-	return s.Cfg.User
+func (s *mssqlDB) User() string {
+	return s.cfg.user
 }
 
-func (s *MssqlDB) Schema() string {
-	return s.Cfg.Schema
+func (s *mssqlDB) Schema() string {
+	return s.cfg.schema
 }
 
-func (s *MssqlDB) Table() []string {
-	return s.Cfg.Table
+func (s *mssqlDB) Table() []string {
+	return s.cfg.table
 }
 
-func (s *MssqlDB) Database() string {
+func (s *mssqlDB) Database() string {
 	return s.Db
 }
 
 // ----------------------------------------------------------------------------
-func (s *MssqlDB) OpenDB(password string) (*sql.DB, error) {
+func (s *mssqlDB) openDB(password string) (*sql.DB, error) {
 	tableFilter := strings.Join(s.Table(), ", ")
 	log.WriteLog(log.MEDIUM, s.LogLevel(), log.LOGFILE, "[Instance]: "+s.Instance(), "[Host]: "+s.Host(), "[Port]: "+strconv.Itoa(s.Port()), "[Database]: "+s.Database(), "[User]: "+s.User(), "[Schema]: "+s.Schema(), "[Table]: "+tableFilter)
 	dsn := fmt.Sprintf("server=%s;user id=%s; password=%s; port=%d; database=%s;", s.Host(), s.User(), password, s.Port(), s.Database())
@@ -60,11 +60,11 @@ func (s *MssqlDB) OpenDB(password string) (*sql.DB, error) {
 	return db, err
 }
 
-func (s *MssqlDB) CloseDB(db *sql.DB) error {
+func (s *mssqlDB) closeDB(db *sql.DB) error {
 	return db.Close()
 }
 
-func (s *MssqlDB) QueryDB(db *sql.DB) error {
+func (s *mssqlDB) queryDB(db *sql.DB) error {
 	var rowSet *sql.Rows
 	var tableNames []string
 	var checkSum string
