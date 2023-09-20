@@ -29,6 +29,7 @@ const (
 	mm012 = "this branch shouldn't be reached"
 	mm013 = "the Logfile parameter isn't configured"
 	mm014 = "the Passwordstore parameter isn't configured"
+	mm015 = "log level"
 )
 
 const (
@@ -40,6 +41,7 @@ const (
 	programVersion    string = "1.2.1"
 	executableName    string = "md5tabsum"
 	defaultConfigName string = "md5tabsum.cfg"
+	defaultLogLevel   string = "INFO"
 )
 
 const (
@@ -49,15 +51,39 @@ const (
 	TRACE        // the most fine-grained information
 )
 
-// parseCmdArgs parses for command line arguments.
-func parseCmdArgs() (*string, *string, *string, *bool) {
-	cfg := flag.String("c", defaultConfigName, mm000)
-	instance := flag.String("i", "", mm001)
-	password := flag.String("p", "", mm002)
-	version := flag.Bool("v", false, mm003)
+// collection of command line parameters
+type parameter struct {
+	cfg           string
+	instance      string
+	passwordStore string
+	version       bool
+	logLevel      int
+}
+
+// command line parameter
+var pr parameter
+
+// parseParameter parses for command line parameters.
+func parseParameter() {
+	flag.StringVar(&pr.cfg, "c", defaultConfigName, mm000)
+	flag.StringVar(&pr.instance, "i", "", mm001)
+	flag.StringVar(&pr.passwordStore, "p", "", mm002)
+	flag.BoolVar(&pr.version, "v", false, mm003)
+	loglevelStr := ""
+	flag.StringVar(&loglevelStr, "l", "INFO", mm015)
 	flag.Parse()
 
-	return cfg, instance, password, version
+	// convert provided log level into integer
+	switch strings.ToUpper(loglevelStr) {
+	case "INFO":
+		pr.logLevel = 0
+	case "DEBUG":
+		pr.logLevel = 1
+	case "TRACE":
+		pr.logLevel = 2
+	default:
+		panic(mm011)
+	}
 }
 
 // compileMD5TableSum encapsulates the workflow how to compile the MD5 checksum of a database table.
@@ -85,61 +111,62 @@ func compileMD5TableSum(instance string, wg *sync.WaitGroup, result chan<- int) 
 
 // run is the entry point of the application logic.
 func run() int {
-	var rc int
+	var rcOverall int
 
 	// init log
 	simplelog.Startup(100)
 	defer simplelog.Shutdown(false)
 	simplelog.SetPrefix(simplelog.FILE, "#2006-01-02 15:04:05.000000#")
 
-	// parse command line arguments
-	cfg, instance, passwordStore, version := parseCmdArgs()
-	if *version {
+	// parse command line parameter
+	parseParameter()
+
+	if pr.version {
 		fmt.Printf("%s %s\n", executableName, programVersion)
 		return md5Ok
 	}
 
 	// read config file
-	if err := setupEnv(cfg); err != nil {
+	if err := setupEnv(&pr.cfg); err != nil {
 		simplelog.Write(simplelog.STDOUT, err.Error())
 		return md5Error
 	}
 
-	if *passwordStore != "" {
-		*passwordStore = strings.ToLower(*passwordStore)
-		if *passwordStore == "create" {
+	if pr.passwordStore != "" {
+		pr.passwordStore = strings.ToLower(pr.passwordStore)
+		if pr.passwordStore == "create" {
 			if err := createInstance(); err != nil {
 				simplelog.Write(simplelog.STDOUT, err)
 				return md5Error
 			}
-		} else if *passwordStore == "add" {
-			if *instance == "" {
+		} else if pr.passwordStore == "add" {
+			if pr.instance == "" {
 				simplelog.Write(simplelog.STDOUT, mm004)
 				return md5Error
 			}
-			if err := addInstance(instance); err != nil {
+			if err := addInstance(pr.instance); err != nil {
 				simplelog.Write(simplelog.STDOUT, err)
 				return md5Error
 			}
-		} else if *passwordStore == "delete" {
-			if *instance == "" {
+		} else if pr.passwordStore == "delete" {
+			if pr.instance == "" {
 				simplelog.Write(simplelog.STDOUT, mm005)
 				return md5Error
 			}
-			if err := deleteInstance(instance); err != nil {
+			if err := deleteInstance(pr.instance); err != nil {
 				simplelog.Write(simplelog.STDOUT, err)
 				return md5Error
 			}
-		} else if *passwordStore == "update" {
-			if *instance == "" {
+		} else if pr.passwordStore == "update" {
+			if pr.instance == "" {
 				simplelog.Write(simplelog.STDOUT, mm006)
 				return md5Error
 			}
-			if err := updateInstance(instance); err != nil {
+			if err := updateInstance(pr.instance); err != nil {
 				simplelog.Write(simplelog.STDOUT, err)
 				return md5Error
 			}
-		} else if *passwordStore == "show" {
+		} else if pr.passwordStore == "show" {
 			if err := showInstance(); err != nil {
 				simplelog.Write(simplelog.STDOUT, err)
 				return md5Error
@@ -151,7 +178,7 @@ func run() int {
 		}
 	} else {
 		simplelog.Write(simplelog.FILE, "Version:", programVersion)
-		cfgPath, _ := filepath.Abs(*cfg)
+		cfgPath, _ := filepath.Abs(pr.cfg)
 		simplelog.Write(simplelog.FILE, "ConfigFile:", cfgPath)
 		simplelog.Write(simplelog.FILE, "PasswordStore:", passwordStoreFile)
 
@@ -163,22 +190,22 @@ func run() int {
 
 		var wg sync.WaitGroup
 		// compile MD5 table checksum for all configured DBMS instances
-		results := make(chan int, len(instanceToConfig))
+		rcGoRoutines := make(chan int, len(instanceToConfig))
 		for k := range instanceToConfig {
 			wg.Add(1)
-			go compileMD5TableSum(k, &wg, results)
+			go compileMD5TableSum(k, &wg, rcGoRoutines)
 		}
 		wg.Wait()
-		close(results)
+		close(rcGoRoutines)
 
-		// calculate overall return code (rc of each executed Go routine is processed)
-		for i := range results {
-			rc |= i
+		// calculate overall return code
+		for rc := range rcGoRoutines {
+			rcOverall |= rc
 		}
-		simplelog.Write(simplelog.FILE, "Return Code: "+strconv.Itoa(rc))
+		simplelog.Write(simplelog.FILE, "Return Code: "+strconv.Itoa(rcOverall))
 	}
 
-	return rc
+	return rcOverall
 }
 
 // main starts the application workflow and returns the return code to the caller

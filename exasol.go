@@ -15,7 +15,8 @@ type exasolDB struct {
 }
 
 func (e *exasolDB) LogLevel() int {
-	return e.cfg.loglevel
+	// return e.cfg.loglevel
+	return 0
 }
 
 func (e *exasolDB) Instance() string {

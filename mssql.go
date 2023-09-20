@@ -16,7 +16,8 @@ type mssqlDB struct {
 }
 
 func (s *mssqlDB) LogLevel() int {
-	return s.cfg.loglevel
+	// return s.cfg.loglevel
+	return 0
 }
 
 func (s *mssqlDB) Instance() string {

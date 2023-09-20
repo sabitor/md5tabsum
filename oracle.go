@@ -16,7 +16,8 @@ type oracleDB struct {
 }
 
 func (o *oracleDB) LogLevel() int {
-	return o.cfg.loglevel
+	// return o.cfg.loglevel
+	return 0
 }
 
 func (o *oracleDB) Instance() string {

@@ -17,10 +17,6 @@ type postgresqlDB struct {
 	Db  string
 }
 
-func (p *postgresqlDB) logLevel() int {
-	return p.cfg.loglevel
-}
-
 func (p *postgresqlDB) instance() string {
 	return p.cfg.instance
 }
@@ -53,7 +49,7 @@ func (p *postgresqlDB) database() string {
 func (p *postgresqlDB) openDB(password string) (*sql.DB, error) {
 	postgresqlLogPrefix = "[" + p.instance() + "] -"
 	tableFilter := strings.Join(p.table(), ", ")
-	simplelog.ConditionalWrite(condition(p.logLevel(), DEBUG), simplelog.FILE, postgresqlLogPrefix, "Host:"+p.host()+",", "Port:"+strconv.Itoa(p.port())+",", "Database:"+p.database()+",", "User:"+p.user()+",", "Schema:"+p.schema()+",", "Table:"+tableFilter)
+	simplelog.ConditionalWrite(condition(pr.logLevel, DEBUG), simplelog.FILE, postgresqlLogPrefix, "Host:"+p.host()+",", "Port:"+strconv.Itoa(p.port())+",", "Database:"+p.database()+",", "User:"+p.user()+",", "Schema:"+p.schema()+",", "Table:"+tableFilter)
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", p.host(), p.port(), p.user(), password, p.database())
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
@@ -73,7 +69,6 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 	var checkSum string
 	var numTableRows int
 	var err error
-	cfgLogLevel := p.logLevel()
 
 	// PREPARE: filter for all existing DB tables based on the configured table parameter (the tables parameter can include placeholders, e.g. %)
 	for _, table := range p.table() {
@@ -135,7 +130,7 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 				columnNames += "coalesce(\"" + column + "\"::text, 'null')"
 			}
 
-			simplelog.ConditionalWrite(condition(cfgLogLevel, TRACE), simplelog.FILE, postgresqlLogPrefix, "Column", ordinalPosition, "of "+table+":", column, "("+columnType+")")
+			simplelog.ConditionalWrite(condition(pr.logLevel, TRACE), simplelog.FILE, postgresqlLogPrefix, "Column", ordinalPosition, "of "+table+":", column, "("+columnType+")")
 			ordinalPosition++
 		}
 
@@ -149,14 +144,14 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 		//   from (select md5(%s) ROWHASH from %s.%s) t
 		sqlText := "select count(1) NUMROWS, coalesce(md5(sum(('x' || substring(ROWHASH, 1, 8))::bit(32)::bigint)::text || sum(('x' || substring(ROWHASH, 9, 8))::bit(32)::bigint)::text ||sum(('x' || substring(ROWHASH, 17, 8))::bit(32)::bigint)::text || sum(('x' || substring(ROWHASH, 25, 8))::bit(32)::bigint)::text), 'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM from (select md5(%s) ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, p.schema(), table)
-		simplelog.ConditionalWrite(condition(cfgLogLevel, TRACE), simplelog.FILE, postgresqlLogPrefix, "SQL: "+sqlQueryStmt)
+		simplelog.ConditionalWrite(condition(pr.logLevel, TRACE), simplelog.FILE, postgresqlLogPrefix, "SQL: "+sqlQueryStmt)
 
 		err = db.QueryRow(sqlQueryStmt).Scan(&numTableRows, &checkSum)
 		if err != nil {
 			simplelog.Write(simplelog.MULTI, postgresqlLogPrefix, err.Error())
 			return err
 		}
-		simplelog.ConditionalWrite(condition(cfgLogLevel, DEBUG), simplelog.FILE, postgresqlLogPrefix, "Number of table rows:", numTableRows)
+		simplelog.ConditionalWrite(condition(pr.logLevel, DEBUG), simplelog.FILE, postgresqlLogPrefix, "Number of table rows:", numTableRows)
 
 		simplelog.Write(simplelog.STDOUT, fmt.Sprintf("%s:%s", p.instance()+"."+table, checkSum))
 		simplelog.Write(simplelog.FILE, postgresqlLogPrefix, "Checksum: "+checkSum)

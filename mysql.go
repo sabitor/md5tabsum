@@ -15,7 +15,8 @@ type mysqlDB struct {
 }
 
 func (m *mysqlDB) LogLevel() int {
-	return m.cfg.loglevel
+	// return m.cfg.loglevel
+	return 0
 }
 
 func (m *mysqlDB) Instance() string {

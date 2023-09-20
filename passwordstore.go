@@ -78,18 +78,18 @@ func createInstance() error {
 }
 
 // deleteInstance deletes a dedicated entry from the global instance password map.
-func deleteInstance(instance *string) error {
+func deleteInstance(instance string) error {
 	err := readPasswordStore()
 	if err != nil {
 		return err
 	}
-	if _, isValid := instancePassword[*instance]; !isValid {
+	if _, isValid := instancePassword[instance]; !isValid {
 		// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, mm007)
 		// os.Exit(ERROR)
 		err = errors.New(mm007)
 		return err
 	}
-	delete(instancePassword, *instance)
+	delete(instancePassword, instance)
 
 	err = writePasswordStore(os.O_WRONLY | os.O_TRUNC)
 	if err != nil {
@@ -100,12 +100,12 @@ func deleteInstance(instance *string) error {
 }
 
 // addInstance adds a dedicated entry in the global instance password map.
-func addInstance(instance *string) error {
+func addInstance(instance string) error {
 	err := readPasswordStore()
 	if err != nil {
 		return err
 	}
-	if _, isValid := instancePassword[*instance]; isValid {
+	if _, isValid := instancePassword[instance]; isValid {
 		// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "The specified instance already exists in the password store.")
 		// os.Exit(ERROR)
 		err = errors.New(mm008)
@@ -114,10 +114,10 @@ func addInstance(instance *string) error {
 	}
 
 	var password []byte
-	fmt.Printf("Enter password for instance %s: ", *instance)
+	fmt.Printf("Enter password for instance %s: ", instance)
 	password, _ = term.ReadPassword(0)
 	fmt.Printf("\n")
-	instancePassword[*instance] = string(password)
+	instancePassword[instance] = string(password)
 
 	err = writePasswordStore(os.O_WRONLY | os.O_TRUNC)
 	if err != nil {
@@ -128,12 +128,12 @@ func addInstance(instance *string) error {
 }
 
 // updateInstance updates a dedicated entry in the global instance password map.
-func updateInstance(instance *string) error {
+func updateInstance(instance string) error {
 	err := readPasswordStore()
 	if err != nil {
 		return err
 	}
-	if _, isValid := instancePassword[*instance]; !isValid {
+	if _, isValid := instancePassword[instance]; !isValid {
 		// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "The specified instance doesn't exist in the password store.")
 		// os.Exit(ERROR)
 		err = errors.New(mm007)
@@ -141,10 +141,10 @@ func updateInstance(instance *string) error {
 	}
 
 	var password []byte
-	fmt.Printf("Enter new password for instance %s: ", *instance)
+	fmt.Printf("Enter new password for instance %s: ", instance)
 	password, _ = term.ReadPassword(0)
 	fmt.Printf("\n")
-	instancePassword[*instance] = string(password)
+	instancePassword[instance] = string(password)
 
 	err = writePasswordStore(os.O_WRONLY | os.O_TRUNC)
 	if err != nil {

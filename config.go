@@ -19,7 +19,6 @@ var (
 
 // collection of DBMS config attributes
 type config struct {
-	loglevel int
 	instance string
 	host     string
 	port     int
@@ -30,25 +29,13 @@ type config struct {
 
 // setInstanceConfig sets the instance parameters according the parsed config file section
 func setInstanceConfig(instance string, v *viper.Viper) {
-	var logLvl int
-	switch strings.ToUpper(v.GetString("loglevel")) {
-	case "INFO":
-		logLvl = 0
-	case "DEBUG":
-		logLvl = 1
-	case "TRACE":
-		logLvl = 2
-	default:
-		panic(mm011)
-	}
-
 	port, _ := strconv.Atoi(v.GetString("port"))
 	allTables := strings.Split(strings.ReplaceAll(strings.ReplaceAll(v.GetString("table"), " ", ""), "\\", ""), ",") // replace " " and "\"" by ""
 	cfgSectionParts := strings.Split(instance, ".")
 	switch cfgSectionParts[0] {
 	case "exasol":
 		instanceToConfig[instance] = &exasolDB{
-			cfg: config{loglevel: logLvl,
+			cfg: config{
 				instance: instance,
 				host:     v.GetString("host"),
 				port:     port,
@@ -58,7 +45,7 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 		}
 	case "oracle":
 		instanceToConfig[instance] = &oracleDB{
-			cfg: config{loglevel: logLvl,
+			cfg: config{
 				instance: instance,
 				host:     v.GetString("host"),
 				port:     port,
@@ -69,7 +56,7 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 		}
 	case "mysql":
 		instanceToConfig[instance] = &mysqlDB{
-			cfg: config{loglevel: logLvl,
+			cfg: config{
 				instance: instance,
 				host:     v.GetString("host"),
 				port:     port,
@@ -79,7 +66,7 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 		}
 	case "postgresql":
 		instanceToConfig[instance] = &postgresqlDB{
-			cfg: config{loglevel: logLvl,
+			cfg: config{
 				instance: instance,
 				host:     v.GetString("host"),
 				port:     port,
@@ -90,7 +77,7 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 		}
 	case "mssql":
 		instanceToConfig[instance] = &mssqlDB{
-			cfg: config{loglevel: logLvl,
+			cfg: config{
 				instance: instance,
 				host:     v.GetString("host"),
 				port:     port,
