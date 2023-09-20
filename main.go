@@ -46,9 +46,9 @@ const (
 
 const (
 	// specifies the log level
-	INFO  = iota // the standard log level
-	DEBUG        // less granular compared to the TRACE level
-	TRACE        // the most fine-grained information
+	info  = iota // the standard log level
+	debug        // less granular compared to the TRACE level
+	trace        // the most fine-grained information
 )
 
 // collection of command line parameters
@@ -76,11 +76,11 @@ func parseParameter() {
 	// convert provided log level into integer
 	switch strings.ToUpper(loglevelStr) {
 	case "INFO":
-		pr.logLevel = 0
+		pr.logLevel = info
 	case "DEBUG":
-		pr.logLevel = 1
+		pr.logLevel = debug
 	case "TRACE":
-		pr.logLevel = 2
+		pr.logLevel = trace
 	default:
 		panic(mm011)
 	}
