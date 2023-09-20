@@ -84,7 +84,7 @@ func instanceName(instance string) database {
 	panic(msg)
 }
 
-// logIt calculates whether to log a message depending on the logging level settings of the configuration file.
-func logIt(cfgLogLevel, msgLogLevel int) bool {
-	return cfgLogLevel >= msgLogLevel
+// condition calculates whether to write a log message depending on the logging level settings of the configuration file.
+func condition(cfgLogLevel, msgLogLevel int) bool {
+	return cfgLogLevel >= msgLogLevel // cfgLogLevel contains the setting of an Loglevel config file parameter
 }

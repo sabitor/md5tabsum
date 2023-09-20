@@ -3,19 +3,13 @@ package main
 import (
 	"flag"
 	"fmt"
-	// "md5tabsum/config"
-	// "md5tabsum/dbms"
-	"strings"
-
-	// "md5tabsum/log"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 
-	// "time"
-
-	sLog "github.com/sabitor/simplelog"
+	"github.com/sabitor/simplelog"
 )
 
 // message catalog
@@ -43,9 +37,9 @@ const (
 )
 
 const (
-	programVersion string = "1.2.1"
-	executableName string = "md5tabsum"
-	configName     string = "md5tabsum.cfg"
+	programVersion    string = "1.2.1"
+	executableName    string = "md5tabsum"
+	defaultConfigName string = "md5tabsum.cfg"
 )
 
 const (
@@ -56,9 +50,8 @@ const (
 )
 
 // parseCmdArgs parses for command line arguments.
-// If nothing was specified, defined defaults are used.
 func parseCmdArgs() (*string, *string, *string, *bool) {
-	cfg := flag.String("c", configName, mm000)
+	cfg := flag.String("c", defaultConfigName, mm000)
 	instance := flag.String("i", "", mm001)
 	password := flag.String("p", "", mm002)
 	version := flag.Bool("v", false, mm003)
@@ -95,9 +88,9 @@ func run() int {
 	var rc int
 
 	// init log
-	sLog.Startup(100)
-	defer sLog.Shutdown(false)
-	sLog.SetPrefix(sLog.FILE, "#2006-01-02 15:04:05.000000#")
+	simplelog.Startup(100)
+	defer simplelog.Shutdown(false)
+	simplelog.SetPrefix(simplelog.FILE, "#2006-01-02 15:04:05.000000#")
 
 	// parse command line arguments
 	cfg, instance, passwordStore, version := parseCmdArgs()
@@ -108,76 +101,67 @@ func run() int {
 
 	// read config file
 	if err := setupEnv(cfg); err != nil {
-		// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, err.Error())
-		sLog.Write(sLog.STDOUT, err.Error())
+		simplelog.Write(simplelog.STDOUT, err.Error())
 		return md5Error
 	}
 
-	*passwordStore = strings.ToLower(*passwordStore)
 	if *passwordStore != "" {
+		*passwordStore = strings.ToLower(*passwordStore)
 		if *passwordStore == "create" {
 			if err := createInstance(); err != nil {
-				// sLog.Write(sLog.STDOUT, err)
+				simplelog.Write(simplelog.STDOUT, err)
 				return md5Error
 			}
 		} else if *passwordStore == "add" {
 			if *instance == "" {
-				// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "To add an instance and its password in the password store the instance command option '-i <instance name>' is required.")
-				sLog.Write(sLog.STDOUT, mm004)
+				simplelog.Write(simplelog.STDOUT, mm004)
 				return md5Error
 			}
 			if err := addInstance(instance); err != nil {
-				sLog.Write(sLog.STDOUT, err)
+				simplelog.Write(simplelog.STDOUT, err)
 				return md5Error
 			}
 		} else if *passwordStore == "delete" {
 			if *instance == "" {
-				// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "To delete an instance and its password from the password store the instance command option '-i <instance name>' is required.")
-				sLog.Write(sLog.STDOUT, mm005)
+				simplelog.Write(simplelog.STDOUT, mm005)
 				return md5Error
 			}
 			if err := deleteInstance(instance); err != nil {
-				sLog.Write(sLog.STDOUT, err)
+				simplelog.Write(simplelog.STDOUT, err)
 				return md5Error
 			}
 		} else if *passwordStore == "update" {
 			if *instance == "" {
-				// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "To update an instance password in the password store the instance command option '-i <instance name>' is required.")
-				sLog.Write(sLog.STDOUT, mm006)
+				simplelog.Write(simplelog.STDOUT, mm006)
 				return md5Error
 			}
 			if err := updateInstance(instance); err != nil {
-				sLog.Write(sLog.STDOUT, err)
+				simplelog.Write(simplelog.STDOUT, err)
 				return md5Error
 			}
 		} else if *passwordStore == "show" {
 			if err := showInstance(); err != nil {
-				sLog.Write(sLog.STDOUT, err)
+				simplelog.Write(simplelog.STDOUT, err)
 				return md5Error
 			}
 		} else {
 			// unsupported command found
-			sLog.Write(sLog.STDOUT, mm010)
+			simplelog.Write(simplelog.STDOUT, mm010)
 			return md5Error
 		}
 	} else {
-		var wg sync.WaitGroup
-
-		// log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[Version]: "+VERSION)
-		sLog.Write(sLog.FILE, "Version:", programVersion)
+		simplelog.Write(simplelog.FILE, "Version:", programVersion)
 		cfgPath, _ := filepath.Abs(*cfg)
-		// log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[ConfigFile]: "+cfgPath)
-		sLog.Write(sLog.FILE, "ConfigFile:", cfgPath)
-		// log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[PasswordStore]: "+gPasswordStore)
-		sLog.Write(sLog.FILE, "PasswordStore:", passwordStoreFile)
+		simplelog.Write(simplelog.FILE, "ConfigFile:", cfgPath)
+		simplelog.Write(simplelog.FILE, "PasswordStore:", passwordStoreFile)
 
-		// Read instance passwords from password store
+		// read instance password(s) from password store
 		if err := readPasswordStore(); err != nil {
-			// log.WriteLog(log.BASIC, log.BASIC, log.BOTH, err.Error())
-			sLog.Write(sLog.MULTI, err.Error())
+			simplelog.Write(simplelog.MULTI, err.Error())
 			return md5Error
 		}
 
+		var wg sync.WaitGroup
 		// compile MD5 table checksum for all configured DBMS instances
 		results := make(chan int, len(instanceToConfig))
 		for k := range instanceToConfig {
@@ -187,13 +171,11 @@ func run() int {
 		wg.Wait()
 		close(results)
 
-		// calculate return code (rc of all go routines are considered)
+		// calculate overall return code (rc of each executed Go routine is processed)
 		for i := range results {
 			rc |= i
 		}
-
-		// log.WriteLog(log.BASIC, log.BASIC, log.LOGFILE, "[Rc]: "+strconv.Itoa(rc))
-		sLog.Write(sLog.FILE, "Return Code: "+strconv.Itoa(rc))
+		simplelog.Write(simplelog.FILE, "Return Code: "+strconv.Itoa(rc))
 	}
 
 	return rc
