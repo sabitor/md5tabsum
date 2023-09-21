@@ -49,7 +49,7 @@ func (p *postgresqlDB) database() string {
 func (p *postgresqlDB) openDB(password string) (*sql.DB, error) {
 	postgresqlLogPrefix = "[" + p.instance() + "] -"
 	tableFilter := strings.Join(p.table(), ", ")
-	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, postgresqlLogPrefix, "Host:"+p.host()+",", "Port:"+strconv.Itoa(p.port())+",", "Database:"+p.database()+",", "User:"+p.user()+",", "Schema:"+p.schema()+",", "Table:"+tableFilter)
+	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, postgresqlLogPrefix, "DBHost:"+p.host()+",", "Port:"+strconv.Itoa(p.port())+",", "Database:"+p.database()+",", "User:"+p.user()+",", "Schema:"+p.schema()+",", "Table:"+tableFilter)
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", p.host(), p.port(), p.user(), password, p.database())
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
@@ -66,8 +66,6 @@ func (p *postgresqlDB) closeDB(db *sql.DB) error {
 func (p *postgresqlDB) queryDB(db *sql.DB) error {
 	var rowSet *sql.Rows
 	var tableNames []string
-	var checkSum string
-	var numTableRows int
 	var err error
 
 	// PREPARE: filter for all existing DB tables based on the configured table parameter (the tables parameter can include placeholders, e.g. %)
@@ -146,6 +144,8 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, p.schema(), table)
 		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, postgresqlLogPrefix, "SQL: "+sqlQueryStmt)
 
+		var numTableRows int
+		var checkSum string
 		err = db.QueryRow(sqlQueryStmt).Scan(&numTableRows, &checkSum)
 		if err != nil {
 			simplelog.Write(simplelog.MULTI, postgresqlLogPrefix, err.Error())

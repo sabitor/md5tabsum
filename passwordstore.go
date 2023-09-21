@@ -4,11 +4,10 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	// "md5tabsum/log"
 	"os"
 	"strings"
 
-	sLog "github.com/sabitor/simplelog"
+	"github.com/sabitor/simplelog"
 	"golang.org/x/term"
 )
 
@@ -84,8 +83,6 @@ func deleteInstance(instance string) error {
 		return err
 	}
 	if _, isValid := instancePassword[instance]; !isValid {
-		// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, mm007)
-		// os.Exit(ERROR)
 		err = errors.New(mm007)
 		return err
 	}
@@ -106,8 +103,6 @@ func addInstance(instance string) error {
 		return err
 	}
 	if _, isValid := instancePassword[instance]; isValid {
-		// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "The specified instance already exists in the password store.")
-		// os.Exit(ERROR)
 		err = errors.New(mm008)
 		return err
 
@@ -134,8 +129,6 @@ func updateInstance(instance string) error {
 		return err
 	}
 	if _, isValid := instancePassword[instance]; !isValid {
-		// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, "The specified instance doesn't exist in the password store.")
-		// os.Exit(ERROR)
 		err = errors.New(mm007)
 		return err
 	}
@@ -162,8 +155,7 @@ func showInstance() error {
 	}
 
 	for k := range instancePassword {
-		// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, k)
-		sLog.Write(sLog.STDOUT, k)
+		simplelog.Write(simplelog.STDOUT, k)
 	}
 
 	return err
