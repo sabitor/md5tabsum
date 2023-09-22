@@ -10,8 +10,6 @@ import (
 	"github.com/sabitor/simplelog"
 )
 
-var mysqlLogPrefix string
-
 type mysqlDB struct {
 	cfg config
 }
@@ -40,16 +38,19 @@ func (m *mysqlDB) table() []string {
 	return m.cfg.table
 }
 
+func (m *mysqlDB) genLogPrefix() string {
+	return "Instance: " + m.instance() + " -"
+}
+
 // ----------------------------------------------------------------------------
 func (m *mysqlDB) openDB(password string) (*sql.DB, error) {
 	sqlMode := "ANSI_QUOTES"
-	mysqlLogPrefix = "Instance: " + m.instance() + " -"
 	tableFilter := strings.Join(m.table(), ", ")
-	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, mysqlLogPrefix, "DBHost:"+m.host()+",", "Port:"+strconv.Itoa(m.port())+",", "User:"+m.user()+",", "Schema:"+m.schema()+",", "Table:"+tableFilter)
+	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, m.genLogPrefix(), "DBHost:"+m.host()+",", "Port:"+strconv.Itoa(m.port())+",", "User:"+m.user()+",", "Schema:"+m.schema()+",", "Table:"+tableFilter)
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?sql_mode=%s", m.user(), password, m.host(), m.port(), m.schema(), sqlMode)
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		simplelog.Write(simplelog.MULTI, err.Error())
+		simplelog.Write(simplelog.MULTI, m.genLogPrefix(), err.Error())
 		return db, err
 	}
 	return db, err
@@ -69,7 +70,7 @@ func (m *mysqlDB) queryDB(db *sql.DB) error {
 		sqlPreparedStmt := "select TABLE_NAME from INFORMATION_SCHEMA.TABLES where table_schema=? and table_name like ?"
 		rowSet, err = db.Query(sqlPreparedStmt, m.schema(), table)
 		if err != nil {
-			simplelog.Write(simplelog.MULTI, mysqlLogPrefix, err.Error())
+			simplelog.Write(simplelog.MULTI, m.genLogPrefix(), err.Error())
 			return err
 		}
 		foundTable := ""
@@ -77,14 +78,14 @@ func (m *mysqlDB) queryDB(db *sql.DB) error {
 			// table exists in DB schema
 			err := rowSet.Scan(&foundTable)
 			if err != nil {
-				simplelog.Write(simplelog.MULTI, mysqlLogPrefix, err.Error())
+				simplelog.Write(simplelog.MULTI, m.genLogPrefix(), err.Error())
 				return err
 			}
 			tableNames = append(tableNames, foundTable)
 		}
 		if foundTable == "" {
 			// table doesn't exist in the DB schema
-			simplelog.Write(simplelog.MULTI, mysqlLogPrefix, "Table "+table+" could not be found.")
+			simplelog.Write(simplelog.MULTI, m.genLogPrefix(), "Table "+table+" could not be found.")
 		}
 	}
 
@@ -94,7 +95,7 @@ func (m *mysqlDB) queryDB(db *sql.DB) error {
 		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA=? and TABLE_NAME=? order by ORDINAL_POSITION asc"
 		rowSet, err = db.Query(sqlPreparedStmt, m.schema(), table)
 		if err != nil {
-			simplelog.Write(simplelog.MULTI, mysqlLogPrefix, err.Error())
+			simplelog.Write(simplelog.MULTI, m.genLogPrefix(), err.Error())
 			return err
 		}
 
@@ -110,7 +111,7 @@ func (m *mysqlDB) queryDB(db *sql.DB) error {
 			}
 			err := rowSet.Scan(&column, &columnType)
 			if err != nil {
-				simplelog.Write(simplelog.MULTI, mysqlLogPrefix, err.Error())
+				simplelog.Write(simplelog.MULTI, m.genLogPrefix(), err.Error())
 				return err
 			}
 
@@ -125,7 +126,7 @@ func (m *mysqlDB) queryDB(db *sql.DB) error {
 				columnNames += "coalesce(cast(\"" + column + "\" as char(" + strconv.Itoa(maxChar) + ")), 'null')"
 			}
 
-			simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, mysqlLogPrefix, "Column", ordinalPosition, "of "+table+":", column, "("+columnType+")")
+			simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, m.genLogPrefix(), "Column", ordinalPosition, "of "+table+":", column, "("+columnType+")")
 			ordinalPosition++
 		}
 		if ordinalPosition > 1 {
@@ -144,19 +145,19 @@ func (m *mysqlDB) queryDB(db *sql.DB) error {
 		//   from (select md5(%s) ROWHASH from %s.%s) t
 		sqlText := "select count(1) NUMROWS, coalesce(md5(concat(sum(cast(conv(substring(ROWHASH, 1, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 9, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 17, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 25, 8), 16, 10) as unsigned)))), 'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM from (select md5(%s) ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, m.schema(), table)
-		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, mysqlLogPrefix, "SQL: "+sqlQueryStmt)
+		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, m.genLogPrefix(), "SQL: "+sqlQueryStmt)
 
 		var numTableRows int
 		var checkSum string
 		err = db.QueryRow(sqlQueryStmt).Scan(&numTableRows, &checkSum)
 		if err != nil {
-			simplelog.Write(simplelog.MULTI, mysqlLogPrefix, err.Error())
+			simplelog.Write(simplelog.MULTI, m.genLogPrefix(), err.Error())
 			return err
 		}
-		simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, mysqlLogPrefix, "Table:"+table+",", "Number of rows:", numTableRows)
+		simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, m.genLogPrefix(), "Table:"+table+",", "Number of rows:", numTableRows)
 
 		simplelog.Write(simplelog.STDOUT, fmt.Sprintf("%s:%s", m.instance()+"."+table, checkSum))
-		simplelog.Write(simplelog.FILE, mysqlLogPrefix, "Table:"+table+",", "MD5: "+checkSum)
+		simplelog.Write(simplelog.FILE, m.genLogPrefix(), "Table:"+table+",", "MD5: "+checkSum)
 	}
 
 	return err
