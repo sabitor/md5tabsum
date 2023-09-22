@@ -14,7 +14,7 @@ var postgresqlLogPrefix string
 
 type postgresqlDB struct {
 	cfg config
-	Db  string
+	Db  string // Postgresql specific
 }
 
 func (p *postgresqlDB) instance() string {
