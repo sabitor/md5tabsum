@@ -14,7 +14,7 @@ import (
 // message catalog
 const (
 	mm000 = "config file name"
-	mm001 = "instance name\n  The defined format is <DBMS>.<instance ID>"
+	mm001 = "instance name\n  The defined format is <predefined DBMS name>.<instance ID>"
 	mm002 = "password store command\n  create - creates the password store based on the instances stored in the config file\n  add    - adds a specific instance and its password in the password store\n  update - updates the password of a specific instance in the password store\n  delete - deletes a specific instance and its password from the password store\n  show   - shows all stored instances in the password store"
 	mm003 = "log detail level: DEBUG (extended logging), TRACE (full logging)"
 	mm004 = "to add instance credentials in the password store the command option '-i <instance name>' is required"
