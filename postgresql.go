@@ -102,16 +102,17 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 			return err
 		}
 
-		columnNames, column, columnType := "", "", ""
+		var columnNames, column, columnType string
 		ordinalPosition := 1
 
+		// gather table properties
 		for rowSet.Next() {
 			if columnNames != "" {
 				columnNames += " || "
 			}
 			err := rowSet.Scan(&column, &columnType)
 			if err != nil {
-				simplelog.Write(simplelog.MULTI, err.Error())
+				simplelog.Write(simplelog.MULTI, postgresqlLogPrefix, err.Error())
 				return err
 			}
 
@@ -132,7 +133,7 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 			ordinalPosition++
 		}
 
-		// Compile checksum (d41d8cd98f00b204e9800998ecf8427e is the default result for an empty table) by using the following SQL:
+		// compile checksum (d41d8cd98f00b204e9800998ecf8427e is the default result for an empty table) by using the following SQL:
 		//   select count(1) NUMROWS,
 		//          coalesce(md5(sum(('x' || substring(ROWHASH, 1, 8))::bit(32)::bigint)::text ||
 		//                       sum(('x' || substring(ROWHASH, 9, 8))::bit(32)::bigint)::text ||
@@ -151,10 +152,10 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 			simplelog.Write(simplelog.MULTI, postgresqlLogPrefix, err.Error())
 			return err
 		}
-		simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, postgresqlLogPrefix, "Number of table rows:", numTableRows)
+		simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, postgresqlLogPrefix, "Table:"+table+",", "Number of rows:", numTableRows)
 
 		simplelog.Write(simplelog.STDOUT, fmt.Sprintf("%s:%s", p.instance()+"."+table, checkSum))
-		simplelog.Write(simplelog.FILE, postgresqlLogPrefix, "Checksum: "+checkSum)
+		simplelog.Write(simplelog.FILE, postgresqlLogPrefix, "Table:"+table+",", "MD5: "+checkSum)
 	}
 
 	return err
