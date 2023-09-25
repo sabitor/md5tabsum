@@ -3,59 +3,58 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"md5tabsum/log"
 	"strconv"
 	"strings"
 
 	_ "github.com/denisenkom/go-mssqldb"
+	"github.com/sabitor/simplelog"
 )
 
 type mssqlDB struct {
 	cfg config
-	Db  string
+	Db  string // MSSQL specific
 }
 
-func (s *mssqlDB) LogLevel() int {
-	// return s.cfg.loglevel
-	return 0
-}
-
-func (s *mssqlDB) Instance() string {
+func (s *mssqlDB) instance() string {
 	return s.cfg.instance
 }
 
-func (s *mssqlDB) Host() string {
+func (s *mssqlDB) host() string {
 	return s.cfg.host
 }
 
-func (s *mssqlDB) Port() int {
+func (s *mssqlDB) port() int {
 	return s.cfg.port
 }
 
-func (s *mssqlDB) User() string {
+func (s *mssqlDB) user() string {
 	return s.cfg.user
 }
 
-func (s *mssqlDB) Schema() string {
+func (s *mssqlDB) schema() string {
 	return s.cfg.schema
 }
 
-func (s *mssqlDB) Table() []string {
+func (s *mssqlDB) table() []string {
 	return s.cfg.table
 }
 
-func (s *mssqlDB) Database() string {
+func (s *mssqlDB) database() string {
 	return s.Db
+}
+
+func (s *mssqlDB) logPrefix() string {
+	return "Instance: " + s.instance() + " -"
 }
 
 // ----------------------------------------------------------------------------
 func (s *mssqlDB) openDB(password string) (*sql.DB, error) {
-	tableFilter := strings.Join(s.Table(), ", ")
-	log.WriteLog(log.MEDIUM, s.LogLevel(), log.LOGFILE, "[Instance]: "+s.Instance(), "[Host]: "+s.Host(), "[Port]: "+strconv.Itoa(s.Port()), "[Database]: "+s.Database(), "[User]: "+s.User(), "[Schema]: "+s.Schema(), "[Table]: "+tableFilter)
-	dsn := fmt.Sprintf("server=%s;user id=%s; password=%s; port=%d; database=%s;", s.Host(), s.User(), password, s.Port(), s.Database())
+	tableFilter := strings.Join(s.table(), ", ")
+	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, s.logPrefix(), "DBHost:"+s.host(), "Port:"+strconv.Itoa(s.port()), "Database:"+s.database(), "User:"+s.user(), "[Schema]: "+s.schema(), "[Table:"+tableFilter)
+	dsn := fmt.Sprintf("server=%s;user id=%s; password=%s; port=%d; database=%s;", s.host(), s.user(), password, s.port(), s.database())
 	db, err := sql.Open("sqlserver", dsn)
 	if err != nil {
-		log.WriteLog(log.BASIC, s.LogLevel(), log.BOTH, err.Error())
+		simplelog.Write(simplelog.MULTI, s.logPrefix(), err.Error())
 		return db, err
 	}
 	return db, err
@@ -68,15 +67,14 @@ func (s *mssqlDB) closeDB(db *sql.DB) error {
 func (s *mssqlDB) queryDB(db *sql.DB) error {
 	var rowSet *sql.Rows
 	var tableNames []string
-	var checkSum string
 	var err error
 
 	// PREPARE: filter for all existing DB tables based on the configured table parameter (the tables parameter can include placeholders, e.g. %)
-	for _, table := range s.Table() {
+	for _, table := range s.table() {
 		sqlPreparedStmt := "select TABLE_NAME from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=@p1 and TABLE_NAME like @p2"
-		rowSet, err = db.Query(sqlPreparedStmt, s.Schema(), table)
+		rowSet, err = db.Query(sqlPreparedStmt, s.schema(), table)
 		if err != nil {
-			log.WriteLog(log.BASIC, s.LogLevel(), log.BOTH, err.Error())
+			simplelog.Write(simplelog.MULTI, s.logPrefix(), err.Error())
 			return err
 		}
 		foundTable := ""
@@ -84,29 +82,29 @@ func (s *mssqlDB) queryDB(db *sql.DB) error {
 			// table exists in DB schema
 			err := rowSet.Scan(&foundTable)
 			if err != nil {
-				log.WriteLog(log.BASIC, s.LogLevel(), log.BOTH, err.Error())
+				simplelog.Write(simplelog.MULTI, s.logPrefix(), err.Error())
 				return err
 			}
 			tableNames = append(tableNames, foundTable)
 		}
 		if foundTable == "" {
 			// table doesn't exist in the DB schema
-			log.WriteLog(log.BASIC, s.LogLevel(), log.BOTH, "Table "+table+" could not be found.")
+			simplelog.Write(simplelog.MULTI, s.logPrefix(), "Table "+table+" could not be found.")
 		}
 	}
 
 	// EXECUTE: compile MD5 for all found tables
 	for _, table := range tableNames {
 		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA=@p1 and TABLE_NAME=@p2 order by ORDINAL_POSITION asc"
-		rowSet, err = db.Query(sqlPreparedStmt, s.Schema(), table)
+		rowSet, err = db.Query(sqlPreparedStmt, s.schema(), table)
 		if err != nil {
-			log.WriteLog(log.BASIC, s.LogLevel(), log.BOTH, err.Error())
+			simplelog.Write(simplelog.MULTI, s.logPrefix(), err.Error())
 			return err
 		}
 
-		var numColumns int // required for building the correct 'concat' string
+		// var numColumns int // required for building the correct 'concat' string
 		var columnNames, column, columnType string
-		var logColumns, logColumnTypes []string
+		ordinalPosition := 1
 
 		for rowSet.Next() {
 			if columnNames != "" {
@@ -116,7 +114,7 @@ func (s *mssqlDB) queryDB(db *sql.DB) error {
 			}
 			err := rowSet.Scan(&column, &columnType)
 			if err != nil {
-				log.WriteLog(log.BASIC, s.LogLevel(), log.BOTH, err.Error())
+				simplelog.Write(simplelog.MULTI, s.logPrefix(), err.Error())
 				return err
 			}
 
@@ -133,31 +131,38 @@ func (s *mssqlDB) queryDB(db *sql.DB) error {
 				columnNames += "coalesce(cast(\"" + column + "\" as varchar(max)), 'null')"
 			}
 
-			logColumns = append(logColumns, column)
-			logColumnTypes = append(logColumnTypes, columnType)
-			numColumns++
+			simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, s.logPrefix(), "Column", ordinalPosition, "of "+table+":", column, "("+columnType+")")
+			ordinalPosition++
 		}
-		if numColumns > 1 {
+		if ordinalPosition > 1 {
 			columnNames += ")"
 		} else {
 			columnNames += ", 'null')"
 		}
-		log.WriteLog(log.FULL, s.LogLevel(), log.LOGFILE, "[Columns]: "+strings.Join(logColumns, ", "), "[Datatypes]: "+strings.Join(logColumnTypes, ", "))
 
-		// compile checksum
+		// CHECK: What about an empty table?
+		// compile checksum (d41d8cd98f00b204e9800998ecf8427e is the default result for an empty table) by using the following SQL:
+		//   select count(1) NUMROWS,
+		//          lower(convert(varchar(max), HashBytes('MD5', concat(cast(sum(convert(bigint, convert(varbinary, substring(t.ROWHASH, 1,8), 2))) as varchar(max)),
+		//                                                              cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 9,8), 2))) as varchar(max)),
+		//                                                              cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 17,8), 2))) as varchar(max)),
+		//                                                              cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 25,8), 2))) as varchar(max)))),2)) CHECKSUM
+		//   from (select lower(convert(varchar(max), HashBytes('MD5', %s), 2)) ROWHASH from %s.%s) t
 		sqlText := "select lower(convert(varchar(max), HashBytes('MD5', concat(cast(sum(convert(bigint, convert(varbinary, substring(t.ROWHASH, 1,8), 2))) as varchar(max)), cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 9,8), 2))) as varchar(max)), cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 17,8), 2))) as varchar(max)), cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 25,8), 2))) as varchar(max)))),2)) CHECKSUM from (select lower(convert(varchar(max), HashBytes('MD5', %s), 2)) ROWHASH from %s.%s) t"
-		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, s.Schema(), table)
-		log.WriteLog(log.FULL, s.LogLevel(), log.LOGFILE, "[SQL]: "+sqlQueryStmt)
+		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, s.schema(), table)
+		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, s.logPrefix(), "SQL: "+sqlQueryStmt)
 
-		err = db.QueryRow(sqlQueryStmt).Scan(&checkSum)
+		var numTableRows int
+		var checkSum string
+		err = db.QueryRow(sqlQueryStmt).Scan(&numTableRows, &checkSum)
 		if err != nil {
-			log.WriteLog(log.BASIC, s.LogLevel(), log.BOTH, err.Error())
+			simplelog.Write(simplelog.MULTI, s.logPrefix(), err.Error())
 			return err
 		}
+		simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, s.logPrefix(), "Table:"+table+",", "Number of rows:", numTableRows)
 
-		result := fmt.Sprintf("%s:%s", s.Instance()+"."+table, checkSum)
-		log.WriteLog(log.BASIC, s.LogLevel(), log.LOGFILE, "[Checksum]: "+result)
-		log.WriteLog(log.BASIC, s.LogLevel(), log.STDOUT, result)
+		simplelog.Write(simplelog.STDOUT, fmt.Sprintf("%s:%s", s.instance()+"."+table, checkSum))
+		simplelog.Write(simplelog.FILE, s.logPrefix(), "Table:"+table+",", "MD5: "+checkSum)
 	}
 
 	return err
