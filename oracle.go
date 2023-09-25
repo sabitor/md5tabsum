@@ -43,7 +43,7 @@ func (o *oracleDB) service() string {
 	return o.Srv
 }
 
-func (o *oracleDB) genLogPrefix() string {
+func (o *oracleDB) logPrefix() string {
 	return "Instance: " + o.instance() + " -"
 }
 
@@ -54,11 +54,11 @@ func (o *oracleDB) openDB(password string) (*sql.DB, error) {
 	// }
 
 	tableFilter := strings.Join(o.table(), ", ")
-	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, o.genLogPrefix(), "DBHost:"+o.host(), "Port:"+strconv.Itoa(o.port()), "Service:"+o.service(), "User:"+o.user(), "Schema:"+o.schema(), "Table: "+tableFilter)
+	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, o.logPrefix(), "DBHost:"+o.host(), "Port:"+strconv.Itoa(o.port()), "Service:"+o.service(), "User:"+o.user(), "Schema:"+o.schema(), "Table: "+tableFilter)
 	dsn := go_ora.BuildUrl(o.host(), o.port(), o.service(), o.user(), password /* urlOptions */, nil)
 	db, err := sql.Open("oracle", dsn)
 	if err != nil {
-		simplelog.Write(simplelog.MULTI, o.genLogPrefix(), err.Error())
+		simplelog.Write(simplelog.MULTI, o.logPrefix(), err.Error())
 		return db, err
 	}
 	return db, err
@@ -76,7 +76,7 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 	// set '.' as NUMBER/FLOAT decimal point for this session
 	_, err = db.Exec("alter session set NLS_NUMERIC_CHARACTERS = '.,'")
 	if err != nil {
-		simplelog.Write(simplelog.MULTI, o.genLogPrefix(), err.Error())
+		simplelog.Write(simplelog.MULTI, o.logPrefix(), err.Error())
 		return err
 	}
 
@@ -86,7 +86,7 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 		sqlPreparedStmt := "select TABLE_NAME from ALL_TABLES where OWNER='" + strings.ToUpper(o.schema()) + "' and TABLE_NAME like '" + strings.ToUpper(table) + "'"
 		rowSet, err = db.Query(sqlPreparedStmt)
 		if err != nil {
-			simplelog.Write(simplelog.MULTI, o.genLogPrefix(), err.Error())
+			simplelog.Write(simplelog.MULTI, o.logPrefix(), err.Error())
 			return err
 		}
 		foundTable := ""
@@ -94,14 +94,14 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 			// table exists in DB schema
 			err := rowSet.Scan(&foundTable)
 			if err != nil {
-				simplelog.Write(simplelog.MULTI, o.genLogPrefix(), err.Error())
+				simplelog.Write(simplelog.MULTI, o.logPrefix(), err.Error())
 				return err
 			}
 			tableNames = append(tableNames, foundTable)
 		}
 		if foundTable == "" {
 			// table doesn't exist in the DB schema
-			simplelog.Write(simplelog.MULTI, o.genLogPrefix(), "Table "+table+" could not be found.")
+			simplelog.Write(simplelog.MULTI, o.logPrefix(), "Table "+table+" could not be found.")
 		}
 	}
 
@@ -111,7 +111,7 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE || '(' || DATA_LENGTH || ',' || DATA_PRECISION || ',' || DATA_SCALE || ')' as DATA_TYPE from ALL_TAB_COLS where OWNER='" + strings.ToUpper(o.schema()) + "' and TABLE_NAME='" + strings.ToUpper(table) + "' order by COLUMN_ID asc"
 		rowSet, err = db.Query(sqlPreparedStmt)
 		if err != nil {
-			simplelog.Write(simplelog.MULTI, o.genLogPrefix(), err.Error())
+			simplelog.Write(simplelog.MULTI, o.logPrefix(), err.Error())
 			return err
 		}
 
@@ -125,7 +125,7 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 			}
 			err := rowSet.Scan(&column, &columnType)
 			if err != nil {
-				simplelog.Write(simplelog.MULTI, o.genLogPrefix(), err.Error())
+				simplelog.Write(simplelog.MULTI, o.logPrefix(), err.Error())
 				return err
 			}
 
@@ -144,7 +144,7 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 				columnNames += "coalesce(cast(\"" + column + "\" as varchar2(" + strconv.Itoa(max) + ")), 'null')"
 			}
 
-			simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, o.genLogPrefix(), "Column", ordinalPosition, "of "+table+":", column, "("+columnType+")")
+			simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, o.logPrefix(), "Column", ordinalPosition, "of "+table+":", column, "("+columnType+")")
 			ordinalPosition++
 		}
 
@@ -159,19 +159,19 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 		//   from (select standard_hash(%s, 'MD5') ROWHASH from %s.%s) t
 		sqlText := "select /*+ PARALLEL */ lower(cast(standard_hash(sum(to_number(substr(t.rowhash, 1, 8), 'xxxxxxxx')) || sum(to_number(substr(t.rowhash, 9, 8), 'xxxxxxxx')) || sum(to_number(substr(t.rowhash, 17, 8), 'xxxxxxxx')) || sum(to_number(substr(t.rowhash, 25, 8), 'xxxxxxxx')), 'MD5') as varchar(4000))) CHECKSUM from (select standard_hash(%s, 'MD5') ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, o.schema(), table)
-		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, o.genLogPrefix(), "SQL: "+sqlQueryStmt)
+		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, o.logPrefix(), "SQL: "+sqlQueryStmt)
 
 		var numTableRows int
 		var checkSum string
 		err = db.QueryRow(sqlQueryStmt).Scan(&numTableRows, &checkSum)
 		if err != nil {
-			simplelog.Write(simplelog.MULTI, o.genLogPrefix(), err.Error())
+			simplelog.Write(simplelog.MULTI, o.logPrefix(), err.Error())
 			return err
 		}
-		simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, o.genLogPrefix(), "Table:"+table+",", "Number of rows:", numTableRows)
+		simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, o.logPrefix(), "Table:"+table+",", "Number of rows:", numTableRows)
 
 		simplelog.Write(simplelog.STDOUT, fmt.Sprintf("%s:%s", o.instance()+"."+table, checkSum))
-		simplelog.Write(simplelog.FILE, o.genLogPrefix(), "Table:"+table+",", "MD5: "+checkSum)
+		simplelog.Write(simplelog.FILE, o.logPrefix(), "Table:"+table+",", "MD5: "+checkSum)
 	}
 
 	return err

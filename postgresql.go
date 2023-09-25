@@ -43,19 +43,18 @@ func (p *postgresqlDB) database() string {
 	return p.Db
 }
 
-func (p *postgresqlDB) genLogPrefix() string {
+func (p *postgresqlDB) logPrefix() string {
 	return "Instance: " + p.instance() + " -"
 }
 
 // ----------------------------------------------------------------------------
 func (p *postgresqlDB) openDB(password string) (*sql.DB, error) {
-	// postgresqlLogPrefix = "Instance: " + p.instance() + " -"
 	tableFilter := strings.Join(p.table(), ", ")
-	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, p.genLogPrefix(), "DBHost:"+p.host()+",", "Port:"+strconv.Itoa(p.port())+",", "Database:"+p.database()+",", "User:"+p.user()+",", "Schema:"+p.schema()+",", "Table:"+tableFilter)
+	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, p.logPrefix(), "DBHost:"+p.host()+",", "Port:"+strconv.Itoa(p.port())+",", "Database:"+p.database()+",", "User:"+p.user()+",", "Schema:"+p.schema()+",", "Table:"+tableFilter)
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", p.host(), p.port(), p.user(), password, p.database())
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-		simplelog.Write(simplelog.MULTI, p.genLogPrefix(), err.Error())
+		simplelog.Write(simplelog.MULTI, p.logPrefix(), err.Error())
 		return db, err
 	}
 	return db, err
@@ -75,7 +74,7 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 		sqlPreparedStmt := "select TABLE_NAME from information_schema.tables where table_schema=$1 and table_name like $2"
 		rowSet, err = db.Query(sqlPreparedStmt, p.schema(), table)
 		if err != nil {
-			simplelog.Write(simplelog.MULTI, p.genLogPrefix(), err.Error())
+			simplelog.Write(simplelog.MULTI, p.logPrefix(), err.Error())
 			return err
 		}
 		foundTable := ""
@@ -83,14 +82,14 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 			// table exists in DB schema
 			err := rowSet.Scan(&foundTable)
 			if err != nil {
-				simplelog.Write(simplelog.MULTI, p.genLogPrefix(), err.Error())
+				simplelog.Write(simplelog.MULTI, p.logPrefix(), err.Error())
 				return err
 			}
 			tableNames = append(tableNames, foundTable)
 		}
 		if foundTable == "" {
 			// table doesn't exist in the DB schema
-			simplelog.Write(simplelog.MULTI, p.genLogPrefix(), "Table "+table+" could not be found.")
+			simplelog.Write(simplelog.MULTI, p.logPrefix(), "Table "+table+" could not be found.")
 		}
 	}
 
@@ -100,7 +99,7 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE from information_schema.columns where table_schema=$1 and table_name=$2 order by ORDINAL_POSITION asc"
 		rowSet, err = db.Query(sqlPreparedStmt, p.schema(), table)
 		if err != nil {
-			simplelog.Write(simplelog.MULTI, p.genLogPrefix(), err.Error())
+			simplelog.Write(simplelog.MULTI, p.logPrefix(), err.Error())
 			return err
 		}
 
@@ -115,7 +114,7 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 			}
 			err := rowSet.Scan(&column, &columnType)
 			if err != nil {
-				simplelog.Write(simplelog.MULTI, p.genLogPrefix(), err.Error())
+				simplelog.Write(simplelog.MULTI, p.logPrefix(), err.Error())
 				return err
 			}
 
@@ -132,7 +131,7 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 				columnNames += "coalesce(\"" + column + "\"::text, 'null')"
 			}
 
-			simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, p.genLogPrefix(), "Column", ordinalPosition, "of "+table+":", column, "("+columnType+")")
+			simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, p.logPrefix(), "Column", ordinalPosition, "of "+table+":", column, "("+columnType+")")
 			ordinalPosition++
 		}
 
@@ -146,19 +145,19 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 		//   from (select md5(%s) ROWHASH from %s.%s) t
 		sqlText := "select count(1) NUMROWS, coalesce(md5(sum(('x' || substring(ROWHASH, 1, 8))::bit(32)::bigint)::text || sum(('x' || substring(ROWHASH, 9, 8))::bit(32)::bigint)::text ||sum(('x' || substring(ROWHASH, 17, 8))::bit(32)::bigint)::text || sum(('x' || substring(ROWHASH, 25, 8))::bit(32)::bigint)::text), 'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM from (select md5(%s) ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, p.schema(), table)
-		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, p.genLogPrefix(), "SQL: "+sqlQueryStmt)
+		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, p.logPrefix(), "SQL: "+sqlQueryStmt)
 
 		var numTableRows int
 		var checkSum string
 		err = db.QueryRow(sqlQueryStmt).Scan(&numTableRows, &checkSum)
 		if err != nil {
-			simplelog.Write(simplelog.MULTI, p.genLogPrefix(), err.Error())
+			simplelog.Write(simplelog.MULTI, p.logPrefix(), err.Error())
 			return err
 		}
-		simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, p.genLogPrefix(), "Table:"+table+",", "Number of rows:", numTableRows)
+		simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, p.logPrefix(), "Table:"+table+",", "Number of rows:", numTableRows)
 
 		simplelog.Write(simplelog.STDOUT, fmt.Sprintf("%s:%s", p.instance()+"."+table, checkSum))
-		simplelog.Write(simplelog.FILE, p.genLogPrefix(), "Table:"+table+",", "MD5: "+checkSum)
+		simplelog.Write(simplelog.FILE, p.logPrefix(), "Table:"+table+",", "MD5: "+checkSum)
 	}
 
 	return err
