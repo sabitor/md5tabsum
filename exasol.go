@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -90,7 +91,9 @@ func (e *exasolDB) queryDB(db *sql.DB) error {
 		}
 		if foundTable == "" {
 			// table doesn't exist in the DB schema
-			simplelog.Write(simplelog.MULTI, e.logPrefix(), "Table "+table+" could not be found.")
+			err = errors.New("Table " + table + " could not be found.")
+			simplelog.Write(simplelog.MULTI, e.logPrefix(), err.Error())
+			return err
 		}
 	}
 

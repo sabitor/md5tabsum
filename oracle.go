@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -101,7 +102,9 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 		}
 		if foundTable == "" {
 			// table doesn't exist in the DB schema
-			simplelog.Write(simplelog.MULTI, o.logPrefix(), "Table "+table+" could not be found.")
+			err = errors.New("Table " + table + " could not be found.")
+			simplelog.Write(simplelog.MULTI, o.logPrefix(), err.Error())
+			return err
 		}
 	}
 

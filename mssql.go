@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -50,7 +51,7 @@ func (s *mssqlDB) logPrefix() string {
 // ----------------------------------------------------------------------------
 func (s *mssqlDB) openDB(password string) (*sql.DB, error) {
 	tableFilter := strings.Join(s.table(), ", ")
-	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, s.logPrefix(), "DBHost:"+s.host(), "Port:"+strconv.Itoa(s.port()), "Database:"+s.database(), "User:"+s.user(), "[Schema]: "+s.schema(), "[Table:"+tableFilter)
+	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, s.logPrefix(), "DBHost:"+s.host(), "Port:"+strconv.Itoa(s.port()), "Database:"+s.database(), "User:"+s.user(), "Schema:"+s.schema(), "Table:"+tableFilter)
 	dsn := fmt.Sprintf("server=%s;user id=%s; password=%s; port=%d; database=%s;", s.host(), s.user(), password, s.port(), s.database())
 	db, err := sql.Open("sqlserver", dsn)
 	if err != nil {
@@ -80,7 +81,7 @@ func (s *mssqlDB) queryDB(db *sql.DB) error {
 		foundTable := ""
 		for rowSet.Next() {
 			// table exists in DB schema
-			err := rowSet.Scan(&foundTable)
+			err = rowSet.Scan(&foundTable)
 			if err != nil {
 				simplelog.Write(simplelog.MULTI, s.logPrefix(), err.Error())
 				return err
@@ -89,7 +90,9 @@ func (s *mssqlDB) queryDB(db *sql.DB) error {
 		}
 		if foundTable == "" {
 			// table doesn't exist in the DB schema
-			simplelog.Write(simplelog.MULTI, s.logPrefix(), "Table "+table+" could not be found.")
+			err = errors.New("Table " + table + " could not be found.")
+			simplelog.Write(simplelog.MULTI, s.logPrefix(), err.Error())
+			return err
 		}
 	}
 
@@ -143,12 +146,13 @@ func (s *mssqlDB) queryDB(db *sql.DB) error {
 		// CHECK: What about an empty table?
 		// compile checksum (d41d8cd98f00b204e9800998ecf8427e is the default result for an empty table) by using the following SQL:
 		//   select count(1) NUMROWS,
-		//          lower(convert(varchar(max), HashBytes('MD5', concat(cast(sum(convert(bigint, convert(varbinary, substring(t.ROWHASH, 1,8), 2))) as varchar(max)),
+		//          coalesce(lower(convert(varchar(max), HashBytes('MD5', concat(cast(sum(convert(bigint, convert(varbinary, substring(t.ROWHASH, 1,8), 2))) as varchar(max)),
 		//                                                              cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 9,8), 2))) as varchar(max)),
 		//                                                              cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 17,8), 2))) as varchar(max)),
-		//                                                              cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 25,8), 2))) as varchar(max)))),2)) CHECKSUM
+		//                                                              cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 25,8), 2))) as varchar(max)))),2)),
+		//                   'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM
 		//   from (select lower(convert(varchar(max), HashBytes('MD5', %s), 2)) ROWHASH from %s.%s) t
-		sqlText := "select lower(convert(varchar(max), HashBytes('MD5', concat(cast(sum(convert(bigint, convert(varbinary, substring(t.ROWHASH, 1,8), 2))) as varchar(max)), cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 9,8), 2))) as varchar(max)), cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 17,8), 2))) as varchar(max)), cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 25,8), 2))) as varchar(max)))),2)) CHECKSUM from (select lower(convert(varchar(max), HashBytes('MD5', %s), 2)) ROWHASH from %s.%s) t"
+		sqlText := "select count(1) NUMROWS, coalesce(lower(convert(varchar(max), HashBytes('MD5', concat(cast(sum(convert(bigint, convert(varbinary, substring(t.ROWHASH, 1,8), 2))) as varchar(max)), cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 9,8), 2))) as varchar(max)), cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 17,8), 2))) as varchar(max)), cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 25,8), 2))) as varchar(max)))),2)), 'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM from (select lower(convert(varchar(max), HashBytes('MD5', %s), 2)) ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, s.schema(), table)
 		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, s.logPrefix(), "SQL: "+sqlQueryStmt)
 
