@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -85,7 +86,9 @@ func (m *mysqlDB) queryDB(db *sql.DB) error {
 		}
 		if foundTable == "" {
 			// table doesn't exist in the DB schema
-			simplelog.Write(simplelog.MULTI, m.logPrefix(), "Table "+table+" could not be found.")
+			err = errors.New("Table " + table + " could not be found.")
+			simplelog.Write(simplelog.MULTI, m.logPrefix(), err.Error())
+			return err
 		}
 	}
 
@@ -135,15 +138,15 @@ func (m *mysqlDB) queryDB(db *sql.DB) error {
 			columnNames += ", 'null')"
 		}
 
-		// compile checksum (d41d8cd98f00b204e9800998ecf8427e is the default result for an empty table) by using the following SQL:
+		// compile checksum (00000000000000000000000000000000 is the default result for an empty table) by using the following SQL:
 		//   select count(1) NUMROWS,
 		//          coalesce(md5(concat(sum(cast(conv(substring(ROWHASH, 1, 8), 16, 10) as unsigned)),
 		//                              sum(cast(conv(substring(ROWHASH, 9, 8), 16, 10) as unsigned)),
 		//                              sum(cast(conv(substring(ROWHASH, 17, 8), 16, 10) as unsigned)),
 		//                              sum(cast(conv(substring(ROWHASH, 25, 8), 16, 10) as unsigned)))),
-		//                   'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM
+		//                   '00000000000000000000000000000000') CHECKSUM
 		//   from (select md5(%s) ROWHASH from %s.%s) t
-		sqlText := "select count(1) NUMROWS, coalesce(md5(concat(sum(cast(conv(substring(ROWHASH, 1, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 9, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 17, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 25, 8), 16, 10) as unsigned)))), 'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM from (select md5(%s) ROWHASH from %s.%s) t"
+		sqlText := "select count(1) NUMROWS, coalesce(md5(concat(sum(cast(conv(substring(ROWHASH, 1, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 9, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 17, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 25, 8), 16, 10) as unsigned)))), '00000000000000000000000000000000') CHECKSUM from (select md5(%s) ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, m.schema(), table)
 		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, m.logPrefix(), "SQL: "+sqlQueryStmt)
 
