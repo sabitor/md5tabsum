@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -89,7 +90,9 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 		}
 		if foundTable == "" {
 			// table doesn't exist in the DB schema
-			simplelog.Write(simplelog.MULTI, p.logPrefix(), "Table "+table+" could not be found.")
+			err = errors.New("Table " + table + " could not be found.")
+			simplelog.Write(simplelog.MULTI, p.logPrefix(), err.Error())
+			return err
 		}
 	}
 
@@ -135,15 +138,15 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 			ordinalPosition++
 		}
 
-		// compile checksum (d41d8cd98f00b204e9800998ecf8427e is the default result for an empty table) by using the following SQL:
+		// compile checksum (00000000000000000000000000000000 is the default result for an empty table) by using the following SQL:
 		//   select count(1) NUMROWS,
 		//          coalesce(md5(sum(('x' || substring(ROWHASH, 1, 8))::bit(32)::bigint)::text ||
 		//                       sum(('x' || substring(ROWHASH, 9, 8))::bit(32)::bigint)::text ||
 		//                       sum(('x' || substring(ROWHASH, 17, 8))::bit(32)::bigint)::text ||
 		//                       sum(('x' || substring(ROWHASH, 25, 8))::bit(32)::bigint)::text),
-		//                   'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM
+		//                   '00000000000000000000000000000000') CHECKSUM
 		//   from (select md5(%s) ROWHASH from %s.%s) t
-		sqlText := "select count(1) NUMROWS, coalesce(md5(sum(('x' || substring(ROWHASH, 1, 8))::bit(32)::bigint)::text || sum(('x' || substring(ROWHASH, 9, 8))::bit(32)::bigint)::text ||sum(('x' || substring(ROWHASH, 17, 8))::bit(32)::bigint)::text || sum(('x' || substring(ROWHASH, 25, 8))::bit(32)::bigint)::text), 'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM from (select md5(%s) ROWHASH from %s.%s) t"
+		sqlText := "select count(1) NUMROWS, coalesce(md5(sum(('x' || substring(ROWHASH, 1, 8))::bit(32)::bigint)::text || sum(('x' || substring(ROWHASH, 9, 8))::bit(32)::bigint)::text ||sum(('x' || substring(ROWHASH, 17, 8))::bit(32)::bigint)::text || sum(('x' || substring(ROWHASH, 25, 8))::bit(32)::bigint)::text), '00000000000000000000000000000000') CHECKSUM from (select md5(%s) ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, p.schema(), table)
 		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, p.logPrefix(), "SQL: "+sqlQueryStmt)
 
