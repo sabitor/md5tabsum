@@ -95,7 +95,7 @@ func (m *mysqlDB) queryDB(db *sql.DB) error {
 	// EXECUTE: Compile MD5 for all found tables
 	maxChar := 65535
 	for _, table := range tableNames {
-		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA=? and TABLE_NAME=? order by ORDINAL_POSITION asc"
+		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE, ORDINAL_POSITION from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA=? and TABLE_NAME=? order by ORDINAL_POSITION asc"
 		rowSet, err = db.Query(sqlPreparedStmt, m.schema(), table)
 		if err != nil {
 			simplelog.Write(simplelog.MULTI, m.logPrefix(), err.Error())
@@ -103,16 +103,14 @@ func (m *mysqlDB) queryDB(db *sql.DB) error {
 		}
 
 		var columnNames, column, columnType string
-		ordinalPosition := 1
+		var ordinalPosition int
 
 		// gather table properties
 		for rowSet.Next() {
 			if columnNames != "" {
 				columnNames += ", "
-			} else {
-				columnNames += "concat("
 			}
-			err := rowSet.Scan(&column, &columnType)
+			err := rowSet.Scan(&column, &columnType, &ordinalPosition)
 			if err != nil {
 				simplelog.Write(simplelog.MULTI, m.logPrefix(), err.Error())
 				return err
@@ -120,22 +118,21 @@ func (m *mysqlDB) queryDB(db *sql.DB) error {
 
 			// convert all columns into string data type
 			if strings.Contains(strings.ToUpper(columnType), "CHAR") {
-				columnNames += "coalesce(md5(\"" + column + "\"), 'null')"
+				// calculate the MD5 of a string-type column to prevent a potential varchar(max) overflow of all concatenated columns
+				columnNames += "coalesce(md5(" + column + "), 'null')"
 			} else if strings.Contains(strings.ToUpper(columnType), "DECIMAL") {
 				columnNames += "coalesce(cast(trim(TRAILING '0' from " + column + ") as char(" + strconv.Itoa(maxChar) + ")), 'null')"
 			} else if strings.Contains(strings.ToUpper(columnType), "TIME") || strings.Contains(strings.ToUpper(columnType), "DATE") {
-				columnNames += "coalesce(date_format(\"" + column + "\", '%Y-%m-%d %H:%i:%s.%f'), 'null')"
+				columnNames += "coalesce(date_format(" + column + ", '%Y-%m-%d %H:%i:%s.%f'), 'null')"
 			} else {
-				columnNames += "coalesce(cast(\"" + column + "\" as char(" + strconv.Itoa(maxChar) + ")), 'null')"
+				columnNames += "coalesce(cast(" + column + " as char(" + strconv.Itoa(maxChar) + ")), 'null')"
 			}
 
 			simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, m.logPrefix(), "Column", ordinalPosition, "of "+table+":", column, "("+columnType+")")
-			ordinalPosition++
 		}
 		if ordinalPosition > 1 {
-			columnNames += ")"
-		} else {
-			columnNames += ", 'null')"
+			// table contains more than one column - concatenate them
+			columnNames = "concat(" + columnNames + ")"
 		}
 
 		// compile checksum (00000000000000000000000000000000 is the default result for an empty table) by using the following SQL:

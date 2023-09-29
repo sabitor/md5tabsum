@@ -98,7 +98,7 @@ func (s *mssqlDB) queryDB(db *sql.DB) error {
 
 	// EXECUTE: compile MD5 for all found tables
 	for _, table := range tableNames {
-		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA=@p1 and TABLE_NAME=@p2 order by ORDINAL_POSITION asc"
+		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE, ORDINAL_POSITION from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA=@p1 and TABLE_NAME=@p2 order by ORDINAL_POSITION asc"
 		rowSet, err = db.Query(sqlPreparedStmt, s.schema(), table)
 		if err != nil {
 			simplelog.Write(simplelog.MULTI, s.logPrefix(), err.Error())
@@ -107,15 +107,13 @@ func (s *mssqlDB) queryDB(db *sql.DB) error {
 
 		// var numColumns int // required for building the correct 'concat' string
 		var columnNames, column, columnType string
-		ordinalPosition := 1
+		var ordinalPosition int
 
 		for rowSet.Next() {
 			if columnNames != "" {
-				columnNames += ", "
-			} else {
-				columnNames += "concat("
+				columnNames += " + "
 			}
-			err := rowSet.Scan(&column, &columnType)
+			err := rowSet.Scan(&column, &columnType, &ordinalPosition)
 			if err != nil {
 				simplelog.Write(simplelog.MULTI, s.logPrefix(), err.Error())
 				return err
@@ -123,36 +121,30 @@ func (s *mssqlDB) queryDB(db *sql.DB) error {
 
 			// convert all columns into string data type
 			if strings.Contains(strings.ToUpper(columnType), "CHAR") {
-				columnNames += "coalesce(lower(convert(varchar(32), HashBytes('MD5', rtrim(\"" + column + "\")),2)), 'null')"
+				// calculate the MD5 of a string-type column to prevent a potential varchar(max) overflow of all concatenated columns
+				columnNames += "coalesce(lower(convert(varchar(32), HashBytes('MD5', rtrim(" + column + ")),2)), 'null')"
 			} else if strings.Contains(strings.ToUpper(columnType), "DECIMAL") {
-				columnNames += "coalesce(cast(cast(\"" + column + "\" as float) as varchar(max)), 'null')"
+				columnNames += "coalesce(cast(cast(" + column + " as float) as varchar(max)), 'null')"
 			} else if strings.Contains(strings.ToUpper(columnType), "TIME") || strings.Contains(strings.ToUpper(columnType), "DATE") {
-				columnNames += "coalesce(cast(format(\"" + column + "\", 'yyyy-MM-dd HH:mm:ss.ffffff') as varchar(max)), 'null')"
+				columnNames += "coalesce(cast(format(" + column + ", 'yyyy-MM-dd HH:mm:ss.ffffff') as varchar(max)), 'null')"
 			} else if strings.Contains(strings.ToUpper(columnType), "FLOAT") {
-				columnNames += "coalesce(convert(varchar(max), \"" + column + "\", 128), 'null')"
+				columnNames += "coalesce(convert(varchar(max), " + column + ", 128), 'null')"
 			} else {
-				columnNames += "coalesce(cast(\"" + column + "\" as varchar(max)), 'null')"
+				columnNames += "coalesce(cast(" + column + " as varchar(max)), 'null')"
 			}
 
 			simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, s.logPrefix(), "Column", ordinalPosition, "of "+table+":", column, "("+columnType+")")
-			ordinalPosition++
-		}
-		if ordinalPosition > 1 {
-			columnNames += ")"
-		} else {
-			columnNames += ", 'null')"
 		}
 
-		// CHECK: What about an empty table?
-		// compile checksum (d41d8cd98f00b204e9800998ecf8427e is the default result for an empty table) by using the following SQL:
+		// compile checksum (00000000000000000000000000000000 is the default result for an empty table) by using the following SQL:
 		//   select count(1) NUMROWS,
 		//          coalesce(lower(convert(varchar(max), HashBytes('MD5', concat(cast(sum(convert(bigint, convert(varbinary, substring(t.ROWHASH, 1,8), 2))) as varchar(max)),
 		//                                                              cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 9,8), 2))) as varchar(max)),
 		//                                                              cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 17,8), 2))) as varchar(max)),
 		//                                                              cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 25,8), 2))) as varchar(max)))),2)),
-		//                   'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM
+		//                   '00000000000000000000000000000000') CHECKSUM
 		//   from (select lower(convert(varchar(max), HashBytes('MD5', %s), 2)) ROWHASH from %s.%s) t
-		sqlText := "select count(1) NUMROWS, coalesce(lower(convert(varchar(max), HashBytes('MD5', concat(cast(sum(convert(bigint, convert(varbinary, substring(t.ROWHASH, 1,8), 2))) as varchar(max)), cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 9,8), 2))) as varchar(max)), cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 17,8), 2))) as varchar(max)), cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 25,8), 2))) as varchar(max)))),2)), 'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM from (select lower(convert(varchar(max), HashBytes('MD5', %s), 2)) ROWHASH from %s.%s) t"
+		sqlText := "select count(1) NUMROWS, coalesce(lower(convert(varchar(max), HashBytes('MD5', cast(sum(convert(bigint, convert(varbinary, substring(t.ROWHASH, 1,8), 2))) as varchar(max)) + cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 9,8), 2))) as varchar(max)) + cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 17,8), 2))) as varchar(max)) + cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 25,8), 2))) as varchar(max))),2)), '00000000000000000000000000000000') CHECKSUM from (select lower(convert(varchar(max), HashBytes('MD5', %s), 2)) ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, s.schema(), table)
 		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, s.logPrefix(), "SQL: "+sqlQueryStmt)
 

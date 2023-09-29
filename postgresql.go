@@ -99,7 +99,7 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 	// EXECUTE: compile MD5 for all found tables
 	for _, table := range tableNames {
 		// FUTURE: In case of coltype VARCHAR the max length is not yet listed. This can be done by integrating the 'character_maximum_length' column in the 'information_scheam.columns' select statement.
-		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE from information_schema.columns where table_schema=$1 and table_name=$2 order by ORDINAL_POSITION asc"
+		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE, ORDINAL_POSITION from information_schema.columns where table_schema=$1 and table_name=$2 order by ORDINAL_POSITION asc"
 		rowSet, err = db.Query(sqlPreparedStmt, p.schema(), table)
 		if err != nil {
 			simplelog.Write(simplelog.MULTI, p.logPrefix(), err.Error())
@@ -107,15 +107,14 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 		}
 
 		var columnNames, column, columnType string
-		// CHECK: query ordinalPosition from DBMS
-		ordinalPosition := 1
+		var ordinalPosition int
 
 		// gather table properties
 		for rowSet.Next() {
 			if columnNames != "" {
 				columnNames += " || "
 			}
-			err := rowSet.Scan(&column, &columnType)
+			err := rowSet.Scan(&column, &columnType, &ordinalPosition)
 			if err != nil {
 				simplelog.Write(simplelog.MULTI, p.logPrefix(), err.Error())
 				return err
@@ -123,19 +122,19 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 
 			// convert all columns into string data type
 			if strings.Contains(strings.ToUpper(columnType), "CHAR") {
-				columnNames += "coalesce(md5(\"" + column + "\"), 'null')"
+				// calculate the MD5 of a string-type column to prevent a potential varchar(max) overflow of all concatenated columns
+				columnNames += "coalesce(md5(" + column + "), 'null')"
 			} else if strings.Contains(strings.ToUpper(columnType), "NUMERIC") {
-				columnNames += "coalesce(trim_scale(\"" + column + "\")::text, 'null')"
+				columnNames += "coalesce(trim_scale(" + column + ")::text, 'null')"
 			} else if strings.Contains(strings.ToUpper(columnType), "TIME") || strings.Contains(strings.ToUpper(columnType), "DATE") {
-				columnNames += "coalesce(to_char(\"" + column + "\", 'YYYY-MM-DD HH24:MI:SS.US'), 'null')"
+				columnNames += "coalesce(to_char(" + column + ", 'YYYY-MM-DD HH24:MI:SS.US'), 'null')"
 			} else if strings.Contains(strings.ToUpper(columnType), "BOOLEAN") {
-				columnNames += "coalesce(\"" + column + "\"::integer::text, 'null')"
+				columnNames += "coalesce(" + column + "::integer::text, 'null')"
 			} else {
-				columnNames += "coalesce(\"" + column + "\"::text, 'null')"
+				columnNames += "coalesce(" + column + "::text, 'null')"
 			}
 
 			simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, p.logPrefix(), "Column", ordinalPosition, "of "+table+":", column, "("+columnType+")")
-			ordinalPosition++
 		}
 
 		// compile checksum (00000000000000000000000000000000 is the default result for an empty table) by using the following SQL:
