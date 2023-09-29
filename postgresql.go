@@ -51,7 +51,7 @@ func (p *postgresqlDB) logPrefix() string {
 // ----------------------------------------------------------------------------
 func (p *postgresqlDB) openDB(password string) (*sql.DB, error) {
 	tableFilter := strings.Join(p.table(), ", ")
-	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, p.logPrefix(), "Profile parameter:", "DBHost:"+p.host()+",", "Port:"+strconv.Itoa(p.port())+",", "Database:"+p.database()+",", "User:"+p.user()+",", "Schema:"+p.schema()+",", "Table:"+tableFilter)
+	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, p.logPrefix(), "Profile parameter:", "Host:"+p.host()+",", "Port:"+strconv.Itoa(p.port())+",", "Database:"+p.database()+",", "User:"+p.user()+",", "Schema:"+p.schema()+",", "Table:"+tableFilter)
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", p.host(), p.port(), p.user(), password, p.database())
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {

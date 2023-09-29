@@ -47,7 +47,7 @@ func (m *mysqlDB) logPrefix() string {
 func (m *mysqlDB) openDB(password string) (*sql.DB, error) {
 	sqlMode := "ANSI_QUOTES"
 	tableFilter := strings.Join(m.table(), ", ")
-	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, m.logPrefix(), "Profile parameter:", "DBHost:"+m.host()+",", "Port:"+strconv.Itoa(m.port())+",", "User:"+m.user()+",", "Schema:"+m.schema()+",", "Table:"+tableFilter)
+	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, m.logPrefix(), "Profile parameter:", "Host:"+m.host()+",", "Port:"+strconv.Itoa(m.port())+",", "User:"+m.user()+",", "Schema:"+m.schema()+",", "Table:"+tableFilter)
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?sql_mode=%s", m.user(), password, m.host(), m.port(), m.schema(), sqlMode)
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {

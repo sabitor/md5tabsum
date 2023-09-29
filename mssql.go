@@ -51,7 +51,7 @@ func (s *mssqlDB) logPrefix() string {
 // ----------------------------------------------------------------------------
 func (s *mssqlDB) openDB(password string) (*sql.DB, error) {
 	tableFilter := strings.Join(s.table(), ", ")
-	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, s.logPrefix(), "Profile parameter:", "DBHost:"+s.host(), "Port:"+strconv.Itoa(s.port()), "Database:"+s.database(), "User:"+s.user(), "Schema:"+s.schema(), "Table:"+tableFilter)
+	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, s.logPrefix(), "Profile parameter:", "Host:"+s.host(), "Port:"+strconv.Itoa(s.port()), "Database:"+s.database(), "User:"+s.user(), "Schema:"+s.schema(), "Table:"+tableFilter)
 	dsn := fmt.Sprintf("server=%s;user id=%s; password=%s; port=%d; database=%s;", s.host(), s.user(), password, s.port(), s.database())
 	db, err := sql.Open("sqlserver", dsn)
 	if err != nil {
