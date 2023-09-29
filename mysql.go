@@ -47,7 +47,7 @@ func (m *mysqlDB) logPrefix() string {
 func (m *mysqlDB) openDB(password string) (*sql.DB, error) {
 	sqlMode := "ANSI_QUOTES"
 	tableFilter := strings.Join(m.table(), ", ")
-	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, m.logPrefix(), "DBHost:"+m.host()+",", "Port:"+strconv.Itoa(m.port())+",", "User:"+m.user()+",", "Schema:"+m.schema()+",", "Table:"+tableFilter)
+	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, m.logPrefix(), "Profile parameter:", "DBHost:"+m.host()+",", "Port:"+strconv.Itoa(m.port())+",", "User:"+m.user()+",", "Schema:"+m.schema()+",", "Table:"+tableFilter)
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?sql_mode=%s", m.user(), password, m.host(), m.port(), m.schema(), sqlMode)
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
@@ -68,7 +68,8 @@ func (m *mysqlDB) queryDB(db *sql.DB) error {
 
 	// PREPARE: Filter for all existing DB tables based on the configured table parameter (the tables parameter can include placeholders, e.g. %)
 	for _, table := range m.table() {
-		sqlPreparedStmt := "select TABLE_NAME from INFORMATION_SCHEMA.TABLES where table_schema=? and table_name like ?"
+		sqlPreparedStmt := "select TABLE_NAME from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=? and TABLE_NAME like ?"
+		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, m.logPrefix(), "SQL[1]: "+sqlPreparedStmt, "-", "TABLE_SCHEMA:"+m.schema()+",", "TABLE_NAME:"+table)
 		rowSet, err = db.Query(sqlPreparedStmt, m.schema(), table)
 		if err != nil {
 			simplelog.Write(simplelog.MULTI, m.logPrefix(), err.Error())
@@ -96,6 +97,7 @@ func (m *mysqlDB) queryDB(db *sql.DB) error {
 	maxChar := 65535
 	for _, table := range tableNames {
 		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE, ORDINAL_POSITION from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA=? and TABLE_NAME=? order by ORDINAL_POSITION asc"
+		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, m.logPrefix(), "SQL[2]: "+sqlPreparedStmt, "-", "TABLE_SCHEMA:"+m.schema()+",", "TABLE_NAME:"+table)
 		rowSet, err = db.Query(sqlPreparedStmt, m.schema(), table)
 		if err != nil {
 			simplelog.Write(simplelog.MULTI, m.logPrefix(), err.Error())
@@ -135,7 +137,7 @@ func (m *mysqlDB) queryDB(db *sql.DB) error {
 			columnNames = "concat(" + columnNames + ")"
 		}
 
-		// compile checksum (00000000000000000000000000000000 is the default result for an empty table) by using the following SQL:
+		// compile MD5 (00000000000000000000000000000000 is the default result for an empty table) by using the following SQL:
 		//   select count(1) NUMROWS,
 		//          coalesce(md5(concat(sum(cast(conv(substring(ROWHASH, 1, 8), 16, 10) as unsigned)),
 		//                              sum(cast(conv(substring(ROWHASH, 9, 8), 16, 10) as unsigned)),
@@ -145,7 +147,7 @@ func (m *mysqlDB) queryDB(db *sql.DB) error {
 		//   from (select md5(%s) ROWHASH from %s.%s) t
 		sqlText := "select count(1) NUMROWS, coalesce(md5(concat(sum(cast(conv(substring(ROWHASH, 1, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 9, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 17, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 25, 8), 16, 10) as unsigned)))), '00000000000000000000000000000000') CHECKSUM from (select md5(%s) ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, m.schema(), table)
-		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, m.logPrefix(), "SQL: "+sqlQueryStmt)
+		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, m.logPrefix(), "SQL[3]: "+sqlQueryStmt)
 
 		var numTableRows int
 		var checkSum string

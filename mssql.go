@@ -51,7 +51,7 @@ func (s *mssqlDB) logPrefix() string {
 // ----------------------------------------------------------------------------
 func (s *mssqlDB) openDB(password string) (*sql.DB, error) {
 	tableFilter := strings.Join(s.table(), ", ")
-	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, s.logPrefix(), "DBHost:"+s.host(), "Port:"+strconv.Itoa(s.port()), "Database:"+s.database(), "User:"+s.user(), "Schema:"+s.schema(), "Table:"+tableFilter)
+	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, s.logPrefix(), "Profile parameter:", "DBHost:"+s.host(), "Port:"+strconv.Itoa(s.port()), "Database:"+s.database(), "User:"+s.user(), "Schema:"+s.schema(), "Table:"+tableFilter)
 	dsn := fmt.Sprintf("server=%s;user id=%s; password=%s; port=%d; database=%s;", s.host(), s.user(), password, s.port(), s.database())
 	db, err := sql.Open("sqlserver", dsn)
 	if err != nil {
@@ -73,6 +73,7 @@ func (s *mssqlDB) queryDB(db *sql.DB) error {
 	// PREPARE: filter for all existing DB tables based on the configured table parameter (the tables parameter can include placeholders, e.g. %)
 	for _, table := range s.table() {
 		sqlPreparedStmt := "select TABLE_NAME from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=@p1 and TABLE_NAME like @p2"
+		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, s.logPrefix(), "SQL[1]: "+sqlPreparedStmt, "-", "TABLE_SCHEMA:"+s.schema()+",", "TABLE_NAME:"+table)
 		rowSet, err = db.Query(sqlPreparedStmt, s.schema(), table)
 		if err != nil {
 			simplelog.Write(simplelog.MULTI, s.logPrefix(), err.Error())
@@ -99,13 +100,13 @@ func (s *mssqlDB) queryDB(db *sql.DB) error {
 	// EXECUTE: compile MD5 for all found tables
 	for _, table := range tableNames {
 		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE, ORDINAL_POSITION from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA=@p1 and TABLE_NAME=@p2 order by ORDINAL_POSITION asc"
+		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, s.logPrefix(), "SQL[2]: "+sqlPreparedStmt, "-", "TABLE_SCHEMA:"+s.schema()+",", "TABLE_NAME:"+table)
 		rowSet, err = db.Query(sqlPreparedStmt, s.schema(), table)
 		if err != nil {
 			simplelog.Write(simplelog.MULTI, s.logPrefix(), err.Error())
 			return err
 		}
 
-		// var numColumns int // required for building the correct 'concat' string
 		var columnNames, column, columnType string
 		var ordinalPosition int
 
@@ -136,7 +137,7 @@ func (s *mssqlDB) queryDB(db *sql.DB) error {
 			simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, s.logPrefix(), "Column", ordinalPosition, "of "+table+":", column, "("+columnType+")")
 		}
 
-		// compile checksum (00000000000000000000000000000000 is the default result for an empty table) by using the following SQL:
+		// compile MD5 (00000000000000000000000000000000 is the default result for an empty table) by using the following SQL:
 		//   select count(1) NUMROWS,
 		//          coalesce(lower(convert(varchar(max), HashBytes('MD5', concat(cast(sum(convert(bigint, convert(varbinary, substring(t.ROWHASH, 1,8), 2))) as varchar(max)),
 		//                                                              cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 9,8), 2))) as varchar(max)),
@@ -146,7 +147,7 @@ func (s *mssqlDB) queryDB(db *sql.DB) error {
 		//   from (select lower(convert(varchar(max), HashBytes('MD5', %s), 2)) ROWHASH from %s.%s) t
 		sqlText := "select count(1) NUMROWS, coalesce(lower(convert(varchar(max), HashBytes('MD5', cast(sum(convert(bigint, convert(varbinary, substring(t.ROWHASH, 1,8), 2))) as varchar(max)) + cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 9,8), 2))) as varchar(max)) + cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 17,8), 2))) as varchar(max)) + cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 25,8), 2))) as varchar(max))),2)), '00000000000000000000000000000000') CHECKSUM from (select lower(convert(varchar(max), HashBytes('MD5', %s), 2)) ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, s.schema(), table)
-		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, s.logPrefix(), "SQL: "+sqlQueryStmt)
+		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, s.logPrefix(), "SQL[3]: "+sqlQueryStmt)
 
 		var numTableRows int
 		var checkSum string

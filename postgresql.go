@@ -51,7 +51,7 @@ func (p *postgresqlDB) logPrefix() string {
 // ----------------------------------------------------------------------------
 func (p *postgresqlDB) openDB(password string) (*sql.DB, error) {
 	tableFilter := strings.Join(p.table(), ", ")
-	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, p.logPrefix(), "DBHost:"+p.host()+",", "Port:"+strconv.Itoa(p.port())+",", "Database:"+p.database()+",", "User:"+p.user()+",", "Schema:"+p.schema()+",", "Table:"+tableFilter)
+	simplelog.ConditionalWrite(condition(pr.logLevel, debug), simplelog.FILE, p.logPrefix(), "Profile parameter:", "DBHost:"+p.host()+",", "Port:"+strconv.Itoa(p.port())+",", "Database:"+p.database()+",", "User:"+p.user()+",", "Schema:"+p.schema()+",", "Table:"+tableFilter)
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", p.host(), p.port(), p.user(), password, p.database())
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
@@ -72,7 +72,8 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 
 	// PREPARE: filter for all existing DB tables based on the configured table parameter (the tables parameter can include placeholders, e.g. %)
 	for _, table := range p.table() {
-		sqlPreparedStmt := "select TABLE_NAME from information_schema.tables where table_schema=$1 and table_name like $2"
+		sqlPreparedStmt := "select TABLE_NAME from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=$1 and TABLE_NAME like $2"
+		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, p.logPrefix(), "SQL[1]: "+sqlPreparedStmt, "-", "TABLE_SCHEMA:"+p.schema()+",", "TABLE_NAME:"+table)
 		rowSet, err = db.Query(sqlPreparedStmt, p.schema(), table)
 		if err != nil {
 			simplelog.Write(simplelog.MULTI, p.logPrefix(), err.Error())
@@ -99,7 +100,8 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 	// EXECUTE: compile MD5 for all found tables
 	for _, table := range tableNames {
 		// FUTURE: In case of coltype VARCHAR the max length is not yet listed. This can be done by integrating the 'character_maximum_length' column in the 'information_scheam.columns' select statement.
-		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE, ORDINAL_POSITION from information_schema.columns where table_schema=$1 and table_name=$2 order by ORDINAL_POSITION asc"
+		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE, ORDINAL_POSITION from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA=$1 and TABLE_NAME=$2 order by ORDINAL_POSITION asc"
+		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, p.logPrefix(), "SQL[2]: "+sqlPreparedStmt, "-", "TABLE_SCHEMA:"+p.schema()+",", "TABLE_NAME:"+table)
 		rowSet, err = db.Query(sqlPreparedStmt, p.schema(), table)
 		if err != nil {
 			simplelog.Write(simplelog.MULTI, p.logPrefix(), err.Error())
@@ -137,7 +139,7 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 			simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, p.logPrefix(), "Column", ordinalPosition, "of "+table+":", column, "("+columnType+")")
 		}
 
-		// compile checksum (00000000000000000000000000000000 is the default result for an empty table) by using the following SQL:
+		// compile MD5 (00000000000000000000000000000000 is the default result for an empty table) by using the following SQL:
 		//   select count(1) NUMROWS,
 		//          coalesce(md5(sum(('x' || substring(ROWHASH, 1, 8))::bit(32)::bigint)::text ||
 		//                       sum(('x' || substring(ROWHASH, 9, 8))::bit(32)::bigint)::text ||
@@ -147,7 +149,7 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 		//   from (select md5(%s) ROWHASH from %s.%s) t
 		sqlText := "select count(1) NUMROWS, coalesce(md5(sum(('x' || substring(ROWHASH, 1, 8))::bit(32)::bigint)::text || sum(('x' || substring(ROWHASH, 9, 8))::bit(32)::bigint)::text ||sum(('x' || substring(ROWHASH, 17, 8))::bit(32)::bigint)::text || sum(('x' || substring(ROWHASH, 25, 8))::bit(32)::bigint)::text), '00000000000000000000000000000000') CHECKSUM from (select md5(%s) ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, p.schema(), table)
-		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, p.logPrefix(), "SQL: "+sqlQueryStmt)
+		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, p.logPrefix(), "SQL[3]: "+sqlQueryStmt)
 
 		var numTableRows int
 		var checkSum string
