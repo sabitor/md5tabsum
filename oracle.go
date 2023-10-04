@@ -85,6 +85,7 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 	for _, table := range o.table() {
 		// Hint: Prepared statements are currently not supported by go-ora. Thus, the command will be build by using the real filter values instead of using place holders.
 		sqlPreparedStmt := "select TABLE_NAME from ALL_TABLES where OWNER='" + strings.ToUpper(o.schema()) + "' and TABLE_NAME like '" + strings.ToUpper(table) + "'"
+		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, o.logPrefix(), "SQL[1]: "+sqlPreparedStmt)
 		rowSet, err = db.Query(sqlPreparedStmt)
 		if err != nil {
 			simplelog.Write(simplelog.MULTI, o.logPrefix(), err.Error())
@@ -111,7 +112,8 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 	// EXECUTE: compile MD5 for all found tables
 	max := 4000
 	for _, table := range tableNames {
-		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE || '(' || DATA_LENGTH || ',' || DATA_PRECISION || ',' || DATA_SCALE || ')' as DATA_TYPE from ALL_TAB_COLS where OWNER='" + strings.ToUpper(o.schema()) + "' and TABLE_NAME='" + strings.ToUpper(table) + "' order by COLUMN_ID asc"
+		sqlPreparedStmt := "select COLUMN_NAME, DATA_TYPE || '(' || DATA_LENGTH || ',' || coalesce(to_char(DATA_PRECISION), 'na') || ',' || coalesce(to_char(DATA_SCALE), 'na') || ')' as DATA_TYPE, COLUMN_ID from ALL_TAB_COLS where OWNER='" + strings.ToUpper(o.schema()) + "' and TABLE_NAME='" + strings.ToUpper(table) + "' order by COLUMN_ID asc"
+		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, o.logPrefix(), "SQL[2]: "+sqlPreparedStmt)
 		rowSet, err = db.Query(sqlPreparedStmt)
 		if err != nil {
 			simplelog.Write(simplelog.MULTI, o.logPrefix(), err.Error())
@@ -119,14 +121,14 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 		}
 
 		var columnNames, column, columnType string
-		ordinalPosition := 1
+		var columnId int
 
 		// gather table properties
 		for rowSet.Next() {
 			if columnNames != "" {
 				columnNames += " || "
 			}
-			err := rowSet.Scan(&column, &columnType)
+			err := rowSet.Scan(&column, &columnType, &columnId)
 			if err != nil {
 				simplelog.Write(simplelog.MULTI, o.logPrefix(), err.Error())
 				return err
@@ -147,12 +149,11 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 				columnNames += "coalesce(cast(\"" + column + "\" as varchar2(" + strconv.Itoa(max) + ")), 'null')"
 			}
 
-			simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, o.logPrefix(), "Column", ordinalPosition, "of "+table+":", column, "("+columnType+")")
-			ordinalPosition++
+			simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, o.logPrefix(), "Column", columnId, "of "+table+":", column, "("+columnType+")")
 		}
 
-		// CHECK: What about an empty table?
-		// compile checksum (d41d8cd98f00b204e9800998ecf8427e is the default result for an empty table) by using the following SQL:
+		// TBD: add support for empty table!
+		// compile MD5 (00000000000000000000000000000000 is the default result for an empty table) by using the following SQL:
 		//   select /*+ PARALLEL */
 		//          count(1) NUMROWS,
 		//          lower(cast(standard_hash(sum(to_number(substr(t.rowhash, 1, 8), 'xxxxxxxx')) ||
@@ -160,9 +161,9 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 		//                                   sum(to_number(substr(t.rowhash, 17, 8), 'xxxxxxxx')) ||
 		//                                   sum(to_number(substr(t.rowhash, 25, 8), 'xxxxxxxx')), 'MD5') as varchar(4000))) CHECKSUM
 		//   from (select standard_hash(%s, 'MD5') ROWHASH from %s.%s) t
-		sqlText := "select /*+ PARALLEL */ lower(cast(standard_hash(sum(to_number(substr(t.rowhash, 1, 8), 'xxxxxxxx')) || sum(to_number(substr(t.rowhash, 9, 8), 'xxxxxxxx')) || sum(to_number(substr(t.rowhash, 17, 8), 'xxxxxxxx')) || sum(to_number(substr(t.rowhash, 25, 8), 'xxxxxxxx')), 'MD5') as varchar(4000))) CHECKSUM from (select standard_hash(%s, 'MD5') ROWHASH from %s.%s) t"
+		sqlText := "select /*+ PARALLEL */ count(1) NUMROWS, lower(cast(standard_hash(sum(to_number(substr(t.rowhash, 1, 8), 'xxxxxxxx')) || sum(to_number(substr(t.rowhash, 9, 8), 'xxxxxxxx')) || sum(to_number(substr(t.rowhash, 17, 8), 'xxxxxxxx')) || sum(to_number(substr(t.rowhash, 25, 8), 'xxxxxxxx')), 'MD5') as varchar(4000))) CHECKSUM from (select standard_hash(%s, 'MD5') ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, o.schema(), table)
-		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, o.logPrefix(), "SQL: "+sqlQueryStmt)
+		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, o.logPrefix(), "SQL[3]: "+sqlQueryStmt)
 
 		var numTableRows int
 		var checkSum string
