@@ -52,7 +52,7 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 				user:     v.GetString("user"),
 				schema:   v.GetString("schema"),
 				table:    allTables},
-			Srv: v.GetString("service"),
+			srv: v.GetString("service"),
 		}
 	case "mysql":
 		instanceToConfig[instance] = &mysqlDB{
@@ -73,7 +73,7 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 				user:     v.GetString("user"),
 				schema:   v.GetString("schema"),
 				table:    allTables},
-			Db: v.GetString("database"),
+			db: v.GetString("database"),
 		}
 	case "mssql":
 		instanceToConfig[instance] = &mssqlDB{
@@ -85,7 +85,7 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 				schema:   v.GetString("schema"),
 				table:    allTables,
 			},
-			Db: v.GetString("database"),
+			db: v.GetString("database"),
 		}
 	// CHECK: Add support for other DBMS
 	default:
