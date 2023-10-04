@@ -13,7 +13,7 @@ import (
 
 type mssqlDB struct {
 	cfg config
-	Db  string // MSSQL specific
+	db  string // MSSQL specific
 }
 
 func (s *mssqlDB) instance() string {
@@ -41,7 +41,7 @@ func (s *mssqlDB) table() []string {
 }
 
 func (s *mssqlDB) database() string {
-	return s.Db
+	return s.db
 }
 
 func (s *mssqlDB) logPrefix() string {

@@ -13,7 +13,7 @@ import (
 
 type postgresqlDB struct {
 	cfg config
-	Db  string // Postgresql specific
+	db  string // Postgresql specific
 }
 
 func (p *postgresqlDB) instance() string {
@@ -41,7 +41,7 @@ func (p *postgresqlDB) table() []string {
 }
 
 func (p *postgresqlDB) database() string {
-	return p.Db
+	return p.db
 }
 
 func (p *postgresqlDB) logPrefix() string {

@@ -13,7 +13,7 @@ import (
 
 type oracleDB struct {
 	cfg config
-	Srv string // Oracle specific
+	srv string // Oracle specific
 }
 
 func (o *oracleDB) instance() string {
@@ -41,7 +41,7 @@ func (o *oracleDB) table() []string {
 }
 
 func (o *oracleDB) service() string {
-	return o.Srv
+	return o.srv
 }
 
 func (o *oracleDB) logPrefix() string {
