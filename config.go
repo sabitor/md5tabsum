@@ -108,9 +108,9 @@ func setupEnv(cfg *string) error {
 	logFile := viper.GetString("Logfile")
 	if logFile == "" {
 		return errors.New(mm013)
-	} else {
-		simplelog.SetupLog(logFile, true)
 	}
+	simplelog.SetupLog(logFile, true)
+
 	passwordStoreFile = viper.GetString("Passwordstore")
 	if passwordStoreFile == "" {
 		return errors.New(mm014)
