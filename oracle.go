@@ -121,14 +121,14 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 		}
 
 		var columnNames, column, columnType string
-		var columnId int
+		var columnID int
 
 		// gather table properties
 		for rowSet.Next() {
 			if columnNames != "" {
 				columnNames += " || "
 			}
-			err := rowSet.Scan(&column, &columnType, &columnId)
+			err := rowSet.Scan(&column, &columnType, &columnID)
 			if err != nil {
 				simplelog.Write(simplelog.MULTI, o.logPrefix(), err.Error())
 				return err
@@ -150,7 +150,7 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 				columnNames += "coalesce(cast(\"" + column + "\" as varchar2(" + strconv.Itoa(max) + ")), 'null')"
 			}
 
-			simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, o.logPrefix(), "Column", columnId, "of "+table+":", column, "("+columnType+")")
+			simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, o.logPrefix(), "Column", columnID, "of "+table+":", column, "("+columnType+")")
 		}
 
 		// compile MD5 (d41d8cd98f00b204e9800998ecf8427e is the default result for an empty table) by using the following SQL:
