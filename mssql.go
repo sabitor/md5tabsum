@@ -45,7 +45,7 @@ func (s *mssqlDB) database() string {
 }
 
 func (s *mssqlDB) logPrefix() string {
-	return "Instance: " + s.instance() + " -"
+	return "[" + s.instance() + "] -"
 }
 
 // ----------------------------------------------------------------------------
@@ -137,15 +137,15 @@ func (s *mssqlDB) queryDB(db *sql.DB) error {
 			simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, s.logPrefix(), "Column", ordinalPosition, "of "+table+":", column, "("+columnType+")")
 		}
 
-		// compile MD5 (00000000000000000000000000000000 is the default result for an empty table) by using the following SQL:
+		// compile MD5 (d41d8cd98f00b204e9800998ecf8427e is the default result for an empty table) by using the following SQL:
 		//   select count(1) NUMROWS,
 		//          coalesce(lower(convert(varchar(max), HashBytes('MD5', concat(cast(sum(convert(bigint, convert(varbinary, substring(t.ROWHASH, 1,8), 2))) as varchar(max)),
 		//                                                              cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 9,8), 2))) as varchar(max)),
 		//                                                              cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 17,8), 2))) as varchar(max)),
 		//                                                              cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 25,8), 2))) as varchar(max)))),2)),
-		//                   '00000000000000000000000000000000') CHECKSUM
+		//                   'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM
 		//   from (select lower(convert(varchar(max), HashBytes('MD5', %s), 2)) ROWHASH from %s.%s) t
-		sqlText := "select count(1) NUMROWS, coalesce(lower(convert(varchar(max), HashBytes('MD5', cast(sum(convert(bigint, convert(varbinary, substring(t.ROWHASH, 1,8), 2))) as varchar(max)) + cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 9,8), 2))) as varchar(max)) + cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 17,8), 2))) as varchar(max)) + cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 25,8), 2))) as varchar(max))),2)), '00000000000000000000000000000000') CHECKSUM from (select lower(convert(varchar(max), HashBytes('MD5', %s), 2)) ROWHASH from %s.%s) t"
+		sqlText := "select count(1) NUMROWS, coalesce(lower(convert(varchar(max), HashBytes('MD5', cast(sum(convert(bigint, convert(varbinary, substring(t.ROWHASH, 1,8), 2))) as varchar(max)) + cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 9,8), 2))) as varchar(max)) + cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 17,8), 2))) as varchar(max)) + cast(sum(convert(bigint, convert(VARBINARY, substring(t.ROWHASH, 25,8), 2))) as varchar(max))),2)), 'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM from (select lower(convert(varchar(max), HashBytes('MD5', %s), 2)) ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, s.schema(), table)
 		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, s.logPrefix(), "SQL[3]: "+sqlQueryStmt)
 

@@ -40,7 +40,7 @@ func (m *mysqlDB) table() []string {
 }
 
 func (m *mysqlDB) logPrefix() string {
-	return "Instance: " + m.instance() + " -"
+	return "[" + m.instance() + "] -"
 }
 
 // ----------------------------------------------------------------------------
@@ -137,15 +137,15 @@ func (m *mysqlDB) queryDB(db *sql.DB) error {
 			columnNames = "concat(" + columnNames + ")"
 		}
 
-		// compile MD5 (00000000000000000000000000000000 is the default result for an empty table) by using the following SQL:
+		// compile MD5 (d41d8cd98f00b204e9800998ecf8427e is the default result for an empty table) by using the following SQL:
 		//   select count(1) NUMROWS,
 		//          coalesce(md5(concat(sum(cast(conv(substring(ROWHASH, 1, 8), 16, 10) as unsigned)),
 		//                              sum(cast(conv(substring(ROWHASH, 9, 8), 16, 10) as unsigned)),
 		//                              sum(cast(conv(substring(ROWHASH, 17, 8), 16, 10) as unsigned)),
 		//                              sum(cast(conv(substring(ROWHASH, 25, 8), 16, 10) as unsigned)))),
-		//                   '00000000000000000000000000000000') CHECKSUM
+		//                   'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM
 		//   from (select md5(%s) ROWHASH from %s.%s) t
-		sqlText := "select count(1) NUMROWS, coalesce(md5(concat(sum(cast(conv(substring(ROWHASH, 1, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 9, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 17, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 25, 8), 16, 10) as unsigned)))), '00000000000000000000000000000000') CHECKSUM from (select md5(%s) ROWHASH from %s.%s) t"
+		sqlText := "select count(1) NUMROWS, coalesce(md5(concat(sum(cast(conv(substring(ROWHASH, 1, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 9, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 17, 8), 16, 10) as unsigned)), sum(cast(conv(substring(ROWHASH, 25, 8), 16, 10) as unsigned)))), 'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM from (select md5(%s) ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, m.schema(), table)
 		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, m.logPrefix(), "SQL[3]: "+sqlQueryStmt)
 

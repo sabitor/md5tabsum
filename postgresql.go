@@ -45,7 +45,7 @@ func (p *postgresqlDB) database() string {
 }
 
 func (p *postgresqlDB) logPrefix() string {
-	return "Instance: " + p.instance() + " -"
+	return "[" + p.instance() + "] -"
 }
 
 // ----------------------------------------------------------------------------
@@ -139,15 +139,15 @@ func (p *postgresqlDB) queryDB(db *sql.DB) error {
 			simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, p.logPrefix(), "Column", ordinalPosition, "of "+table+":", column, "("+columnType+")")
 		}
 
-		// compile MD5 (00000000000000000000000000000000 is the default result for an empty table) by using the following SQL:
+		// compile MD5 (d41d8cd98f00b204e9800998ecf8427e is the default result for an empty table) by using the following SQL:
 		//   select count(1) NUMROWS,
 		//          coalesce(md5(sum(('x' || substring(ROWHASH, 1, 8))::bit(32)::bigint)::text ||
 		//                       sum(('x' || substring(ROWHASH, 9, 8))::bit(32)::bigint)::text ||
 		//                       sum(('x' || substring(ROWHASH, 17, 8))::bit(32)::bigint)::text ||
 		//                       sum(('x' || substring(ROWHASH, 25, 8))::bit(32)::bigint)::text),
-		//                   '00000000000000000000000000000000') CHECKSUM
+		//                   'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM
 		//   from (select md5(%s) ROWHASH from %s.%s) t
-		sqlText := "select count(1) NUMROWS, coalesce(md5(sum(('x' || substring(ROWHASH, 1, 8))::bit(32)::bigint)::text || sum(('x' || substring(ROWHASH, 9, 8))::bit(32)::bigint)::text ||sum(('x' || substring(ROWHASH, 17, 8))::bit(32)::bigint)::text || sum(('x' || substring(ROWHASH, 25, 8))::bit(32)::bigint)::text), '00000000000000000000000000000000') CHECKSUM from (select md5(%s) ROWHASH from %s.%s) t"
+		sqlText := "select count(1) NUMROWS, coalesce(md5(sum(('x' || substring(ROWHASH, 1, 8))::bit(32)::bigint)::text || sum(('x' || substring(ROWHASH, 9, 8))::bit(32)::bigint)::text ||sum(('x' || substring(ROWHASH, 17, 8))::bit(32)::bigint)::text || sum(('x' || substring(ROWHASH, 25, 8))::bit(32)::bigint)::text), 'd41d8cd98f00b204e9800998ecf8427e') CHECKSUM from (select md5(%s) ROWHASH from %s.%s) t"
 		sqlQueryStmt := fmt.Sprintf(sqlText, columnNames, p.schema(), table)
 		simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, p.logPrefix(), "SQL[3]: "+sqlQueryStmt)
 

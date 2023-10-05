@@ -45,7 +45,7 @@ func (o *oracleDB) service() string {
 }
 
 func (o *oracleDB) logPrefix() string {
-	return "Instance: " + o.instance() + " -"
+	return "[" + o.instance() + "] -"
 }
 
 // ----------------------------------------------------------------------------
@@ -152,8 +152,7 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 			simplelog.ConditionalWrite(condition(pr.logLevel, trace), simplelog.FILE, o.logPrefix(), "Column", columnId, "of "+table+":", column, "("+columnType+")")
 		}
 
-		// TBD: add support for empty table!
-		// compile MD5 (00000000000000000000000000000000 is the default result for an empty table) by using the following SQL:
+		// compile MD5 (d41d8cd98f00b204e9800998ecf8427e is the default result for an empty table) by using the following SQL:
 		//   select /*+ PARALLEL */
 		//          count(1) NUMROWS,
 		//          lower(cast(standard_hash(sum(to_number(substr(t.rowhash, 1, 8), 'xxxxxxxx')) ||
