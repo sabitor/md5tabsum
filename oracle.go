@@ -136,6 +136,7 @@ func (o *oracleDB) queryDB(db *sql.DB) error {
 
 			// convert all columns into string data type
 			if strings.Contains(strings.ToUpper(columnType), "CHAR") {
+				// calculate the MD5 of a string-type column to prevent a potential varchar(max) overflow of all concatenated columns
 				columnNames += "case when \"" + column + "\" is NULL then 'null' else cast(lower(standard_hash(trim(trailing ' ' from \"" + column + "\"), 'MD5')) as varchar2(4000)) end"
 			} else if strings.Contains(strings.ToUpper(columnType), "DATE") {
 				columnNames += "coalesce(to_char(\"" + column + "\", 'YYYY-MM-DD HH24:MI:SS')||'.000000', 'null')"
