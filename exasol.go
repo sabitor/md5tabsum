@@ -40,7 +40,7 @@ func (e *exasolDB) table() []string {
 }
 
 func (e *exasolDB) logPrefix() string {
-	return "Instance: " + e.instance() + " -"
+	return "[" + e.instance() + "] -"
 }
 
 // ----------------------------------------------------------------------------
