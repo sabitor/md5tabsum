@@ -7,7 +7,7 @@ require (
 	github.com/exasol/exasol-driver-go v1.0.3
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/lib/pq v1.10.9
-	github.com/sabitor/simplelog v0.2.1
+	github.com/sabitor/simplelog v0.9.1
 	github.com/sijms/go-ora/v2 v2.7.19
 	github.com/spf13/viper v1.17.0
 	golang.org/x/term v0.13.0
