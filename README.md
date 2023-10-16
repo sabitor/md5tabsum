@@ -91,7 +91,7 @@ Table | single table or comma separated list of tables including placeholder cha
 
 ### Example
  Suppose you want to calculate the checksum for a few tables in an MySQL database running in a test environment. The following properties are given:
- - Host name is testserver1.company.com
+ - Host name is testserver1.mycompany.com
  - Port number is 8563
  - User name is user123
  - Schema name is emea
@@ -105,7 +105,7 @@ Based on these requirements the instance section in the configuration file looks
  Mysql:
   Test1:
     Active:   1
-    Host:     testserver1.company.com
+    Host:     testserver1.mycompany.com
     Port:     8563
     User:     user123
     Schema:   emea
