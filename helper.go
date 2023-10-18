@@ -9,8 +9,8 @@ import (
 	"io"
 )
 
-// The cipher key has to be either 16, 24 or 32 bytes. Change it accordingly!
-const cipherkey = "abcdefghijklmnopqrstuvwxyz012345"
+// The secret key has to be either 16, 24 or 32 bytes. Change it accordingly!
+const secretKey = "abcdefghijklmnopqrstuvw"
 
 // encodeBase64 encodes a byte slice using the Base64 algorithm.
 func encodeBase64(sourceBytes []byte) string {

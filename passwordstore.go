@@ -26,7 +26,7 @@ func writePasswordStore(flags int) error {
 	defer f.Close()
 
 	for k, v := range instancePassword {
-		record, err := encryptAES(cipherkey, k+":"+v)
+		record, err := encryptAES(secretKey, k+":"+v)
 		if err != nil {
 			return err
 		}
@@ -47,7 +47,7 @@ func readPasswordStore() error {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		encryptedRecord := scanner.Text() // get the line string
-		record, err := decryptAES(cipherkey, encryptedRecord)
+		record, err := decryptAES(secretKey, encryptedRecord)
 		if err != nil {
 			return err
 		}
