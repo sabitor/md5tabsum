@@ -2,29 +2,54 @@ package main
 
 import (
 	"bufio"
+	"crypto/md5"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
+	"math/big"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/sabitor/simplelog"
 	"golang.org/x/term"
 )
 
 var (
-	passwordStoreFile string
-	instancePassword  = make(map[string]string) // map to store instances and their password
+	passwordStoreFile    string
+	passwordStoreKeyFile string
+	instancePassword     = make(map[string]string) // map to store instances and their password
 )
 
-// writePasswordStore writes the encrypted instance:password data for each configured DBMS instance to the password store.
+// readSecretKey reads the secret key from the password store key file into memory.
+func readSecretKey() ([]byte, error) {
+	secretKey := []byte{}
+	encodedSecretKey, err := os.ReadFile(passwordStoreKeyFile)
+	if err != nil {
+		return secretKey, err
+	}
+	secretKey, err = decodeBase64(string(encodedSecretKey))
+	if err != nil {
+		return secretKey, err
+	}
+	return secretKey, err
+}
+
+// writePasswordStore writes AES encrypted password store records into the password store.
+// This will be done for each configured and activated DBMS instance in the config file.
 func writePasswordStore(flags int) error {
 	f, err := os.OpenFile(passwordStoreFile, flags, 0600)
 	if err != nil {
-		// log.WriteLog(log.BASIC, log.BASIC, log.STDOUT, err.Error())
 		return err
 	}
 	defer f.Close()
 
+	secretKey, err := readSecretKey()
+	if err != nil {
+		return err
+	}
 	for k, v := range instancePassword {
 		record, err := encryptAES(secretKey, k+":"+v)
 		if err != nil {
@@ -36,39 +61,75 @@ func writePasswordStore(flags int) error {
 	return err
 }
 
-// readPasswordStore reads the encrypted instance:password data and stores them unencrypted in the global instance/password map.
+// readPasswordStore reads AES encrypted password store records and stores them unencrypted in the global instance/password map.
 func readPasswordStore() error {
-	f, err := os.OpenFile(passwordStoreFile, os.O_RDONLY, 0600)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		encryptedRecord := scanner.Text() // get the line string
-		record, err := decryptAES(secretKey, encryptedRecord)
+	var err error
+	if _, err = os.Stat(passwordStoreFile); err == nil {
+		f, err := os.OpenFile(passwordStoreFile, os.O_RDONLY, 0600)
 		if err != nil {
 			return err
 		}
-		instance, password, _ := strings.Cut(record, ":")
-		instancePassword[instance] = password
+		defer f.Close()
+
+		secretKey, err := readSecretKey()
+		if err != nil {
+			return err
+		}
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			encryptedRecord := scanner.Text() // get the line string
+			record, err := decryptAES(secretKey, encryptedRecord)
+			if err != nil {
+				return err
+			}
+			instance, password, _ := strings.Cut(record, ":")
+			instancePassword[instance] = password
+		}
+	} else if os.IsNotExist(err) {
+		err = errors.New(mm016)
 	}
 
 	return err
 }
 
-// createInstance creates the password store from scratch based on the configured instances found in the config file.
-func createInstance() error {
-	var password []byte
+// initPWS initializes the password store based on the configured and activated instances found in the config file.
+// The following key/value pair per instance section will be stored AES encrypted: <predefined dbms>.<instance ID>:<password>
+func initPWS() error {
+	var err error
+
+	if _, err = os.Stat(passwordStoreKeyFile); err != nil {
+		if os.IsNotExist(err) {
+			// create secret key and store it in the secret key file
+			var f *os.File
+			f, err = os.OpenFile(passwordStoreKeyFile, os.O_RDWR|os.O_CREATE, 0600)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+
+			timeStr := time.Now().GoString()
+			salt, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
+			if err != nil {
+				return err
+			}
+			keyStr := timeStr + salt.String()
+			hash := md5.Sum([]byte(keyStr))
+			secretKey := hex.EncodeToString(hash[:]) // secret key length: 32 byte
+			_, err = f.Write([]byte(encodeBase64([]byte(secretKey))))
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	for i := range instanceToConfig {
 		fmt.Printf("Enter password for instance %s: ", i)
-		password, _ = term.ReadPassword(0)
+		password, _ := term.ReadPassword(0)
 		fmt.Printf("\n")
 		instancePassword[i] = string(password)
 	}
 
-	err := writePasswordStore(os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
+	err = writePasswordStore(os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
 	if err != nil {
 		return err
 	}
