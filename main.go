@@ -12,21 +12,24 @@ import (
 )
 
 // message catalog
-const (
+var (
 	mm000 = "config file name"
 	mm001 = "instance name\n  The defined format is <predefined DBMS name>.<instance ID>\n  Predefined DBMS names are: exasol, mysql, mssql, oracle, postgresql"
-	mm002 = "password store command\n  create - creates the password store based on the instances stored in the config file\n  add    - adds a specific instance and its password in the password store\n  update - updates the password of a specific instance in the password store\n  delete - deletes a specific instance and its password from the password store\n  show   - shows all stored instances in the password store"
+	mm002 = "password store command\n  init   - initializes the password store based on the DBMS instances setup in the config file\n  add    - adds a passed DBMS instance and its password to the password store\n  update - updates the password of the passed DBMS instance in the password store\n  delete - deletes the passed DBMS instance record from the password store\n  show   - shows all DBMS instances records saved in the password store"
 	mm003 = "log detail level: DEBUG (extended logging), TRACE (full logging)"
 	mm004 = "to add instance credentials in the password store the command option '-i <instance name>' is required"
 	mm005 = "to delete instance credentials from the password store the command option '-i <instance name>' is required"
 	mm006 = "to update instance credentials in the password store the command option '-i <instance name>' is required"
-	mm007 = "the specified instance doesn't exist in the password store"
+	mm007 = "the specified instance does not exist in the password store"
 	mm008 = "the specified instance already exists in the password store"
 	mm009 = "something went wrong while determining the nonce size"
 	mm010 = "unsupported password store command specified"
-	mm012 = "this branch shouldn't be reached"
-	mm013 = "the Logfile parameter isn't configured"
-	mm014 = "the Passwordstore parameter isn't configured"
+	mm012 = "this branch should not be reached"
+	mm013 = "the Logfile parameter is not configured"
+	mm014 = "the Passwordstore parameter is not configured"
+	mm015 = "the Passwordstorekey parameter is not configured"
+	mm016 = "the password store specified by the Passwordstore parmeter does not exist"
+	mm017 = "DBMS instance section '%1' does not contain an instance ID"
 )
 
 const (
@@ -114,15 +117,15 @@ func run() int {
 	parseParameter()
 
 	// read config file
-	if err := setupEnv(&pr.cfg); err != nil {
+	if err := setupEnv(pr.cfg); err != nil {
 		simplelog.Write(simplelog.STDOUT, err.Error())
 		return md5Error
 	}
 
 	if pr.passwordStore != "" {
 		pr.passwordStore = strings.ToLower(pr.passwordStore)
-		if pr.passwordStore == "create" {
-			if err := createInstance(); err != nil {
+		if pr.passwordStore == "init" {
+			if err := initPWS(); err != nil {
 				simplelog.Write(simplelog.STDOUT, err)
 				return md5Error
 			}
@@ -171,8 +174,9 @@ func run() int {
 		}
 		simplelog.Write(simplelog.FILE, programName, "version:", programVersion)
 		cfgPath, _ := filepath.Abs(pr.cfg)
-		simplelog.Write(simplelog.FILE, "ConfigFile:", cfgPath)
-		simplelog.Write(simplelog.FILE, "PasswordStore:", passwordStoreFile)
+		simplelog.Write(simplelog.FILE, "Configfile:", cfgPath)
+		simplelog.Write(simplelog.FILE, "Passwordstore:", passwordStoreFile)
+		simplelog.Write(simplelog.FILE, "Passwordstorekey:", passwordStoreKeyFile)
 
 		// read instance password(s) from password store
 		if err := readPasswordStore(); err != nil {
