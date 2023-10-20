@@ -127,13 +127,15 @@ Usage of ./md5tabsum:
         instance name
           The defined format is <predefined DBMS name>.<instance ID>
           Predefined DBMS names are: exasol, mysql, mssql, oracle, postgresql
+  -l string
+        log detail level: DEBUG (extended logging), TRACE (full logging)
   -p string
-        password store action
-          create - creates the password store based on the instances stored in the config file
-          add    - adds a specific instance and its password in the password store
-          update - updates the password of a specific instance in the password store
-          delete - deletes a specific instance and its password from the password store
-          show   - shows all stored instances in the password store
+        password store command
+          init   - initializes the password store based on the DBMS instances setup in the config file
+          add    - adds a passed DBMS instance and its password to the password store
+          update - updates the password of the passed DBMS instance in the password store
+          delete - deletes the passed DBMS instance record from the password store
+          show   - shows all DBMS instances records saved in the password store
 ```
 Before the calculation of the table checksum can be started for the first time, some setup requirements must be met:
 1. The configuration file has to be created. What needs to be considered there can be found in chapter *How to configure* above.
