@@ -7,10 +7,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
+	"strconv"
+	"strings"
 )
-
-// The secret key has to be either 16, 24 or 32 bytes. Change it accordingly!
-const secretKey = "abcdefghijklmnopqrstuvwxyz012345"
 
 // encodeBase64 encodes a byte slice using the Base64 algorithm.
 func encodeBase64(sourceBytes []byte) string {
@@ -29,8 +28,8 @@ func decodeBase64(encodedText string) ([]byte, error) {
 }
 
 // encryptAES encrypts a string using AES encryption
-func encryptAES(key, plainText string) (string, error) {
-	cph, err := aes.NewCipher([]byte(key))
+func encryptAES(key []byte, plainText string) (string, error) {
+	cph, err := aes.NewCipher(key)
 	if err != nil {
 		return "", err
 	}
@@ -48,8 +47,8 @@ func encryptAES(key, plainText string) (string, error) {
 }
 
 // decryptAES decrypts a string which was encrypted using AES encryption.
-func decryptAES(key, encryptedText string) (string, error) {
-	cph, err := aes.NewCipher([]byte(key))
+func decryptAES(key []byte, encryptedText string) (string, error) {
+	cph, err := aes.NewCipher(key)
 	if err != nil {
 		return "", err
 	}
@@ -87,4 +86,16 @@ func instanceName(instance string) database {
 // condition calculates whether to write a log message depending on the logging level settings of the configuration file.
 func condition(cfgLogLevel, msgLogLevel int) bool {
 	return cfgLogLevel >= msgLogLevel // cfgLogLevel contains the setting of an Loglevel config file parameter
+}
+
+// msgFormat replaces message wildecards with corresponding parameters.
+// A message wildcard is of the format: %<number> (number starts at 1).
+func msgFormat(m string, p ...string) string {
+	result := m
+	for i, v := range p {
+		param := "%" + strconv.Itoa(i+1)
+		result = strings.Replace(m, param, v, -1)
+
+	}
+	return result
 }
