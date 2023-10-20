@@ -139,7 +139,7 @@ Usage of ./md5tabsum:
 ```
 Before the calculation of the table checksum can be started for the first time, some setup requirements must be met:
 1. The configuration file has to be created. What needs to be considered there can be found in chapter *How to configure* above.
-2. The instance passwords have to be written to the so called *password store* - a file where the instance passwords are stored using AES encryption. To do this, the following command has to be triggered, in which you will be asked for the user password for all active instances:
+2. The instance passwords have to be written to the so called *password store* - a file where the instance passwords are stored using AES encryption. When using md5tabsum for the first time, the password store must first be created. To do so, the following command has to be triggered, in which you will be asked for the user passwords for all activated instances:
 ```
 md5tabsum -c <config file> -p init
 Enter password for instance mysql.test:
