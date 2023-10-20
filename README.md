@@ -34,8 +34,9 @@ The configuration file consists of two sections:
 As the name implies, the *common section* contains key-value pairs which are valid for all configured instances. A list of all common keywords including their details can be found in the following table:
 Common Keyword | Value | Comments
 --- | --- | ---
-Logfile | full qualified name of the log file | The specified name has to conform to the OS file name convention. This config file parameter is mandatory.
-Passwordstore | full qualified name of the password store | The specified name has to conform to the OS file name convention. This config file parameter is mandatory.
+Logfile | full qualified name of the md5tabsum log file | The specified name has to conform to the OS file name convention. This config file parameter is mandatory.
+Passwordstore | full qualified name of the password store | This files contains DBMS instance passwords, which are used for accessing the corresponding DBMS for calculating the table MD5 checksum. The data in this file are AES encrypted. The specified name has to conform to the OS file name convention. This config file parameter is mandatory.
+Passwordstorekey | full qualified name of the password store key file | This files contains the secret Key, which is used for encrypting and decrypting password store data. *It is important to keep this file in a save place that can only be accessed by the owner of the md5tabsum application!* The specified name has to conform to the OS file name convention. This config file parameter is mandatory.
 
 The *DBMS instance section* can consist of one or multiple so-called *DBMS instances*. These are delimited sections for dedicated DBMS, host, users and tables. 
 A DBMS instance section is structured as follows:
