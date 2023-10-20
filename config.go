@@ -13,8 +13,6 @@ import (
 var (
 	// store active instances and their assigned configuration: Key -> DBMS instance name : Value -> DBMS instance config
 	instanceToConfig = make(map[string]database)
-	// list of all supported DBMS
-	supportedDbms = []string{"exasol", "mysql", "mssql", "oracle", "postgresql"}
 )
 
 // collection of DBMS config attributes
@@ -94,12 +92,12 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 }
 
 // setupEnv reads the config file and sets the instance config for all active instances
-func setupEnv(cfg *string) error {
+func setupEnv(cfg string) error {
 	var err error
 
-	viper.SetConfigName(filepath.Base(*cfg)) // config file name
-	viper.SetConfigType("yaml")              // config file type
-	viper.AddConfigPath(filepath.Dir(*cfg))  // config file path
+	viper.SetConfigName(filepath.Base(cfg)) // config file name
+	viper.SetConfigType("yaml")             // config file type
+	viper.AddConfigPath(filepath.Dir(cfg))  // config file path
 	if err = viper.ReadInConfig(); err != nil {
 		return err
 	}
@@ -116,12 +114,21 @@ func setupEnv(cfg *string) error {
 		return errors.New(mm014)
 	}
 
+	passwordStoreKeyFile = viper.GetString("Passwordstorekey")
+	if passwordStoreKeyFile == "" {
+		return errors.New(mm015)
+	}
+
 	// read DBMS instance config parameters
+	supportedDbms := []string{"exasol", "mysql", "mssql", "oracle", "postgresql"}
+	instanceKeywords := map[string]struct{}{"active": {}, "host": {}, "port": {}, "user": {}, "database": {}, "schema": {}, "service": {}, "table": {}}
 	for _, v := range supportedDbms {
 		cfgFirstLevelKey := viper.GetStringMapString(v) // all cfg instances (instance1, instance2, ...) are assigned to a DBMS name (mysql, oracle, ...)
-		dbmsInstance := ""
 		for k := range cfgFirstLevelKey {
-			dbmsInstance = v + "." + k // e.g. mysql.instance1
+			if _, isInstanceId := instanceKeywords[k]; isInstanceId {
+				return errors.New(msgFormat(mm017, v))
+			}
+			dbmsInstance := v + "." + k // e.g. mysql.instance1
 			if cfgInstance := viper.Sub(dbmsInstance); cfgInstance != nil && cfgInstance.GetString("active") == "1" {
 				setInstanceConfig(dbmsInstance, cfgInstance)
 			}
