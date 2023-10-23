@@ -138,14 +138,14 @@ Usage of ./md5tabsum:
           delete - deletes the passed DBMS instance record from the password store
           show   - shows all DBMS instances records saved in the password store
 ```
-Before the calculation of the table checksum can be started for the first time, some setup requirements must be met:
+Before the calculation of the table checksum can be started for the first time, the following requirements must be met:
 1. The configuration file has to be created. What needs to be considered there can be found in chapter *How to configure* above.
-2. The instance passwords have to be written to the so called *password store* - a file where the instance passwords are stored using AES encryption. When using md5tabsum for the first time, the password store must first be created. To do so, the following command has to be triggered, in which you will be asked for the user passwords for all activated instances:
+2. The *password store* and the *secret key file* have to be created. To do so, the md5tabsum password store *init* command has to be invoked.
 ```
 md5tabsum -c <config file> -p init
 Enter password for instance mysql.test:
 ```
-**HINT:** While entering the password it is not printed on STDOUT.
+**HINT:** During the password store initialization you will be asked for the user passwords for all activated instances in the config file. While entering the password it is not printed on STDOUT.
 
 After all setup requirements have been met, the checksum calculation can be started as follows:
 ```
