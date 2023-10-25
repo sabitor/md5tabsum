@@ -132,11 +132,12 @@ Usage of ./md5tabsum:
         log detail level: DEBUG (extended logging), TRACE (full logging)
   -p string
         password store command
-          init   - initializes the password store based on the DBMS instances setup in the config file
-          add    - adds a passed DBMS instance and its password to the password store
-          update - updates the password of the passed DBMS instance in the password store
-          delete - deletes the passed DBMS instance record from the password store
+          init   - creates and initializes the password and creates the secret key file
+          add    - adds a specified DBMS instance and its password to the password store
+          update - updates the password of the specified DBMS instance in the password store
+          delete - deletes the specified DBMS instance record from the password store
           show   - shows all DBMS instances records saved in the password store
+          sync   - synchronizes the password store with the config file
 ```
 Before the calculation of the table checksum can be started for the first time, the following requirements must be met:
 1. The configuration file has to be created. What needs to be considered there can be found in chapter *How to configure* above.
