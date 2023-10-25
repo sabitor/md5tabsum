@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	// store active instances and their assigned configuration: Key -> DBMS instance name : Value -> DBMS instance config
-	instanceToConfig = make(map[string]database)
+	instanceConfig = make(map[string]database) // store config file instances and their assigned configuration
+	instanceActive = make(map[string]bool)     // store active config file instances
 )
 
 // collection of DBMS config attributes
@@ -32,7 +32,7 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 	cfgSectionParts := strings.Split(instance, ".")
 	switch cfgSectionParts[0] {
 	case "exasol":
-		instanceToConfig[instance] = &exasolDB{
+		instanceConfig[instance] = &exasolDB{
 			cfg: config{
 				instance: instance,
 				host:     v.GetString("host"),
@@ -42,7 +42,7 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 				table:    allTables},
 		}
 	case "oracle":
-		instanceToConfig[instance] = &oracleDB{
+		instanceConfig[instance] = &oracleDB{
 			cfg: config{
 				instance: instance,
 				host:     v.GetString("host"),
@@ -53,7 +53,7 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 			srv: v.GetString("service"),
 		}
 	case "mysql":
-		instanceToConfig[instance] = &mysqlDB{
+		instanceConfig[instance] = &mysqlDB{
 			cfg: config{
 				instance: instance,
 				host:     v.GetString("host"),
@@ -63,7 +63,7 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 				table:    allTables},
 		}
 	case "postgresql":
-		instanceToConfig[instance] = &postgresqlDB{
+		instanceConfig[instance] = &postgresqlDB{
 			cfg: config{
 				instance: instance,
 				host:     v.GetString("host"),
@@ -74,7 +74,7 @@ func setInstanceConfig(instance string, v *viper.Viper) {
 			db: v.GetString("database"),
 		}
 	case "mssql":
-		instanceToConfig[instance] = &mssqlDB{
+		instanceConfig[instance] = &mssqlDB{
 			cfg: config{
 				instance: instance,
 				host:     v.GetString("host"),
@@ -125,11 +125,14 @@ func setupEnv(cfg string) error {
 	for _, v := range supportedDbms {
 		cfgFirstLevelKey := viper.GetStringMapString(v) // all cfg instances (instance1, instance2, ...) are assigned to a DBMS name (mysql, oracle, ...)
 		for k := range cfgFirstLevelKey {
-			if _, isInstanceId := instanceKeywords[k]; isInstanceId {
-				return errors.New(msgFormat(mm017, v))
+			if _, isInstanceID := instanceKeywords[k]; isInstanceID {
+				return errors.New(formatMsg(mm017, v))
 			}
 			dbmsInstance := v + "." + k // e.g. mysql.instance1
-			if cfgInstance := viper.Sub(dbmsInstance); cfgInstance != nil && cfgInstance.GetString("active") == "1" {
+			if cfgInstance := viper.Sub(dbmsInstance); cfgInstance != nil {
+				if cfgInstance.GetString("active") == "1" {
+					instanceActive[dbmsInstance] = true
+				}
 				setInstanceConfig(dbmsInstance, cfgInstance)
 			}
 		}
