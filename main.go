@@ -15,7 +15,7 @@ import (
 const (
 	mm000 string = "config file name"
 	mm001 string = "instance name\n  The defined format is <predefined DBMS name>.<instance ID>\n  Predefined DBMS names are: exasol, mysql, mssql, oracle, postgresql"
-	mm002 string = "password store command\n  init   - initializes the password store based on the DBMS instances setup in the config file\n  add    - adds a passed DBMS instance and its password to the password store\n  update - updates the password of the passed DBMS instance in the password store\n  delete - deletes the passed DBMS instance record from the password store\n  show   - shows all DBMS instances records saved in the password store"
+	mm002 string = "password store command\n  init   - creates and initializes the password store and creates the secret key file\n  add    - adds a specified DBMS instance and its password to the password store\n  update - updates the password of the specified DBMS instance in the password store\n  delete - deletes the specified DBMS instance record from the password store\n  show   - shows all DBMS instances records saved in the password store\n  sync   - synchronizes the password store with the config file"
 	mm003 string = "log detail level: DEBUG (extended logging), TRACE (full logging)"
 	mm004 string = "to add instance credentials in the password store the command option '-i <instance name>' is required"
 	mm005 string = "to delete instance credentials from the password store the command option '-i <instance name>' is required"

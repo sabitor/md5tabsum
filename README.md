@@ -132,7 +132,7 @@ Usage of ./md5tabsum:
         log detail level: DEBUG (extended logging), TRACE (full logging)
   -p string
         password store command
-          init   - creates and initializes the password and creates the secret key file
+          init   - creates and initializes the password store and creates the secret key file
           add    - adds a specified DBMS instance and its password to the password store
           update - updates the password of the specified DBMS instance in the password store
           delete - deletes the specified DBMS instance record from the password store
