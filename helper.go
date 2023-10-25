@@ -76,7 +76,7 @@ func decryptAES(key []byte, encryptedText string) (string, error) {
 
 // instanceName validates the existence of a given DBMS instance name in the instaneToConfig map.
 func instanceName(instance string) database {
-	if v, ok := instanceToConfig[instance]; ok {
+	if v, ok := instanceConfig[instance]; ok {
 		return v
 	}
 	msg := "key '" + instance + "' doesn't exist"
@@ -88,9 +88,9 @@ func condition(cfgLogLevel, msgLogLevel int) bool {
 	return cfgLogLevel >= msgLogLevel // cfgLogLevel contains the setting of an Loglevel config file parameter
 }
 
-// msgFormat replaces message wildecards with corresponding parameters.
+// formatMsg replaces message wildecards with corresponding parameters.
 // A message wildcard is of the format: %<number> (number starts at 1).
-func msgFormat(m string, p ...string) string {
+func formatMsg(m string, p ...string) string {
 	result := m
 	for i, v := range p {
 		param := "%" + strconv.Itoa(i+1)
