@@ -12,24 +12,25 @@ import (
 )
 
 // message catalog
-var (
-	mm000 = "config file name"
-	mm001 = "instance name\n  The defined format is <predefined DBMS name>.<instance ID>\n  Predefined DBMS names are: exasol, mysql, mssql, oracle, postgresql"
-	mm002 = "password store command\n  init   - initializes the password store based on the DBMS instances setup in the config file\n  add    - adds a passed DBMS instance and its password to the password store\n  update - updates the password of the passed DBMS instance in the password store\n  delete - deletes the passed DBMS instance record from the password store\n  show   - shows all DBMS instances records saved in the password store"
-	mm003 = "log detail level: DEBUG (extended logging), TRACE (full logging)"
-	mm004 = "to add instance credentials in the password store the command option '-i <instance name>' is required"
-	mm005 = "to delete instance credentials from the password store the command option '-i <instance name>' is required"
-	mm006 = "to update instance credentials in the password store the command option '-i <instance name>' is required"
-	mm007 = "the specified instance does not exist in the password store"
-	mm008 = "the specified instance already exists in the password store"
-	mm009 = "something went wrong while determining the nonce size"
-	mm010 = "unsupported password store command specified"
-	mm012 = "this branch should not be reached"
-	mm013 = "the Logfile parameter is not configured"
-	mm014 = "the Passwordstore parameter is not configured"
-	mm015 = "the Passwordstorekey parameter is not configured"
-	mm016 = "the password store specified by the Passwordstore parmeter does not exist"
-	mm017 = "DBMS instance section '%1' does not contain an instance ID"
+const (
+	mm000 string = "config file name"
+	mm001 string = "instance name\n  The defined format is <predefined DBMS name>.<instance ID>\n  Predefined DBMS names are: exasol, mysql, mssql, oracle, postgresql"
+	mm002 string = "password store command\n  init   - initializes the password store based on the DBMS instances setup in the config file\n  add    - adds a passed DBMS instance and its password to the password store\n  update - updates the password of the passed DBMS instance in the password store\n  delete - deletes the passed DBMS instance record from the password store\n  show   - shows all DBMS instances records saved in the password store"
+	mm003 string = "log detail level: DEBUG (extended logging), TRACE (full logging)"
+	mm004 string = "to add instance credentials in the password store the command option '-i <instance name>' is required"
+	mm005 string = "to delete instance credentials from the password store the command option '-i <instance name>' is required"
+	mm006 string = "to update instance credentials in the password store the command option '-i <instance name>' is required"
+	mm007 string = "the specified instance does not exist in the password store"
+	mm008 string = "the specified instance already exists in the password store"
+	mm009 string = "something went wrong while determining the nonce size"
+	mm010 string = "unsupported password store command specified"
+	mm012 string = "this branch should not be reached"
+	mm013 string = "the Logfile parameter is not configured"
+	mm014 string = "the Passwordstore parameter is not configured"
+	mm015 string = "the Passwordstorekey parameter is not configured"
+	mm016 string = "the password store specified by the Passwordstore parmeter does not exist"
+	mm017 string = "DBMS instance section '%1' does not contain an instance ID"
+	mm018 string = "remove instance %1 from the password store"
 )
 
 const (
@@ -106,7 +107,7 @@ func compileMD5TableSum(instance string, wg *sync.WaitGroup, result chan<- int) 
 
 // run is the entry point of the application logic.
 func run() int {
-	var rcOverall int
+	var rc int
 
 	// init log
 	simplelog.Startup(100)
@@ -122,86 +123,94 @@ func run() int {
 		return md5Error
 	}
 
+	programName, _ := os.Executable()
+	simplelog.Write(simplelog.FILE, programName, "version:", programVersion)
+	cfgPath, _ := filepath.Abs(pr.cfg)
+	simplelog.Write(simplelog.FILE, "Configfile:", cfgPath)
+	simplelog.Write(simplelog.FILE, "Passwordstore:", passwordStoreFile)
+	simplelog.Write(simplelog.FILE, "Passwordstorekey:", passwordStoreKeyFile)
+
+	// check for password store command
 	if pr.passwordStore != "" {
 		pr.passwordStore = strings.ToLower(pr.passwordStore)
+		simplelog.Write(simplelog.FILE, "Passwordstore command:", pr.passwordStore)
 		if pr.passwordStore == "init" {
 			if err := initPWS(); err != nil {
-				simplelog.Write(simplelog.STDOUT, err)
-				return md5Error
-			}
-		} else if pr.passwordStore == "add" {
-			if pr.instance == "" {
-				simplelog.Write(simplelog.STDOUT, mm004)
-				return md5Error
-			}
-			if err := addInstance(pr.instance); err != nil {
-				simplelog.Write(simplelog.STDOUT, err)
-				return md5Error
-			}
-		} else if pr.passwordStore == "delete" {
-			if pr.instance == "" {
-				simplelog.Write(simplelog.STDOUT, mm005)
-				return md5Error
-			}
-			if err := deleteInstance(pr.instance); err != nil {
-				simplelog.Write(simplelog.STDOUT, err)
-				return md5Error
-			}
-		} else if pr.passwordStore == "update" {
-			if pr.instance == "" {
-				simplelog.Write(simplelog.STDOUT, mm006)
-				return md5Error
-			}
-			if err := updateInstance(pr.instance); err != nil {
-				simplelog.Write(simplelog.STDOUT, err)
-				return md5Error
-			}
-		} else if pr.passwordStore == "show" {
-			if err := showInstance(); err != nil {
-				simplelog.Write(simplelog.STDOUT, err)
-				return md5Error
+				simplelog.Write(simplelog.MULTI, err.Error())
+				rc = md5Error
 			}
 		} else {
-			// unsupported command found
-			simplelog.Write(simplelog.STDOUT, mm010)
-			return md5Error
+			// password store must have been already initialized; read instance password(s) from it
+			if err := readPasswordStore(); err != nil {
+				simplelog.Write(simplelog.MULTI, err.Error())
+				rc = md5Error
+			} else {
+				if pr.passwordStore == "add" {
+					if pr.instance == "" {
+						simplelog.Write(simplelog.MULTI, mm004)
+						rc = md5Error
+					} else {
+						if err := addInstance(pr.instance); err != nil {
+							simplelog.Write(simplelog.MULTI, err.Error())
+							rc = md5Error
+						}
+					}
+				} else if pr.passwordStore == "delete" {
+					if pr.instance == "" {
+						simplelog.Write(simplelog.MULTI, mm005)
+						rc = md5Error
+					} else {
+						if err := deleteInstance(pr.instance); err != nil {
+							simplelog.Write(simplelog.MULTI, err.Error())
+							rc = md5Error
+						}
+					}
+				} else if pr.passwordStore == "update" {
+					if pr.instance == "" {
+						simplelog.Write(simplelog.MULTI, mm006)
+						rc = md5Error
+					} else {
+						if err := updateInstance(pr.instance); err != nil {
+							simplelog.Write(simplelog.MULTI, err.Error())
+							rc = md5Error
+						}
+					}
+				} else if pr.passwordStore == "show" {
+					showInstance()
+				} else if pr.passwordStore == "sync" {
+					syncPWS()
+				} else {
+					// unsupported password store command specified
+					simplelog.Write(simplelog.MULTI, mm010)
+					rc = md5Error
+				}
+			}
 		}
 	} else {
-		programName, err := os.Executable()
-		if err != nil {
-			simplelog.Write(simplelog.MULTI, err.Error())
-			return md5Error
-		}
-		simplelog.Write(simplelog.FILE, programName, "version:", programVersion)
-		cfgPath, _ := filepath.Abs(pr.cfg)
-		simplelog.Write(simplelog.FILE, "Configfile:", cfgPath)
-		simplelog.Write(simplelog.FILE, "Passwordstore:", passwordStoreFile)
-		simplelog.Write(simplelog.FILE, "Passwordstorekey:", passwordStoreKeyFile)
-
 		// read instance password(s) from password store
 		if err := readPasswordStore(); err != nil {
 			simplelog.Write(simplelog.MULTI, err.Error())
-			return md5Error
-		}
+			rc = md5Error
+		} else {
+			var wg sync.WaitGroup
+			// compile MD5 table checksum for all active DBMS instances
+			rcGoRoutines := make(chan int, len(instanceActive))
+			for k := range instanceActive {
+				wg.Add(1)
+				go compileMD5TableSum(k, &wg, rcGoRoutines)
+			}
+			wg.Wait()
+			close(rcGoRoutines)
 
-		var wg sync.WaitGroup
-		// compile MD5 table checksum for all configured DBMS instances
-		rcGoRoutines := make(chan int, len(instanceToConfig))
-		for k := range instanceToConfig {
-			wg.Add(1)
-			go compileMD5TableSum(k, &wg, rcGoRoutines)
+			// calculate overall return code
+			for rcSingle := range rcGoRoutines {
+				rc |= rcSingle
+			}
 		}
-		wg.Wait()
-		close(rcGoRoutines)
-
-		// calculate overall return code
-		for rc := range rcGoRoutines {
-			rcOverall |= rc
-		}
-		simplelog.Write(simplelog.FILE, "Return Code: "+strconv.Itoa(rcOverall))
 	}
 
-	return rcOverall
+	simplelog.Write(simplelog.FILE, "Return Code: "+strconv.Itoa(rc))
+	return rc
 }
 
 // main starts the application workflow and returns the return code to the caller
