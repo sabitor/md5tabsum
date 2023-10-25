@@ -34,8 +34,9 @@ The configuration file consists of two sections:
 As the name implies, the *common section* contains key-value pairs which are valid for all configured instances. A list of all common keywords including their details can be found in the following table:
 Common Keyword | Value | Comments
 --- | --- | ---
-Logfile | full qualified name of the log file | The specified name has to conform to the OS file name convention. This config file parameter is mandatory.
-Passwordstore | full qualified name of the password store | The specified name has to conform to the OS file name convention. This config file parameter is mandatory.
+Logfile | full qualified name of the md5tabsum log file | The specified name has to conform to the OS file name convention. This config file parameter is mandatory.
+Passwordstore | full qualified name of the password store | This files contains DBMS instance passwords, which are used for accessing the corresponding DBMS for calculating the table MD5 checksum. The data in this file are AES encrypted. The specified name has to conform to the OS file name convention. This config file parameter is mandatory.
+Passwordstorekey | full qualified name of the password store key file | This files contains the secret Key, which is used for encrypting and decrypting password store data. *It is important to keep this file in a save place that can only be accessed by the owner of the md5tabsum application!* The specified name has to conform to the OS file name convention. This config file parameter is mandatory.
 
 The *DBMS instance section* can consist of one or multiple so-called *DBMS instances*. These are delimited sections for dedicated DBMS, host, users and tables. 
 A DBMS instance section is structured as follows:
@@ -137,14 +138,14 @@ Usage of ./md5tabsum:
           delete - deletes the passed DBMS instance record from the password store
           show   - shows all DBMS instances records saved in the password store
 ```
-Before the calculation of the table checksum can be started for the first time, some setup requirements must be met:
+Before the calculation of the table checksum can be started for the first time, the following requirements must be met:
 1. The configuration file has to be created. What needs to be considered there can be found in chapter *How to configure* above.
-2. The instance passwords have to be written to the so called *password store* - a file where the instance passwords are stored using AES encryption. To do this, the following command has to be triggered, in which you will be asked for the user password for all active instances:
+2. The *password store* and the *secret key file* have to be created. To do so, the md5tabsum password store *init* command has to be invoked.
 ```
-md5tabsum -c <config file> -p create
+md5tabsum -c <config file> -p init
 Enter password for instance mysql.test:
 ```
-**HINT:** While entering the password it is not printed on STDOUT.
+**HINT:** During the password store initialization you will be asked for the user passwords for all activated instances in the config file. While entering the password it is not printed on STDOUT.
 
 After all setup requirements have been met, the checksum calculation can be started as follows:
 ```
