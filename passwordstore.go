@@ -20,7 +20,7 @@ import (
 var (
 	passwordStoreFile    string
 	passwordStoreKeyFile string
-	instancePassword     = make(map[string]string) // map to store instances and their password
+	instancePassword     = make(map[string]string) // store config file instances and their password
 )
 
 // readSecretKey reads the secret key from the password store key file into memory.
@@ -92,11 +92,11 @@ func readPasswordStore() error {
 	return err
 }
 
-// initPWS initializes the password store based on the configured and activated instances found in the config file.
-// The following key/value pair per instance section will be stored AES encrypted: <predefined dbms>.<instance ID>:<password>
+// init initializes the password store based on the configured and activated instances found in the config file.
+// A key/value pair per active config file section will be stored in the password store. It will be stored AES encrypted.
+// The key value is of the format: <predefined DBMS name>.<instance ID>, the key value is the user password.
 func initPWS() error {
 	var err error
-
 	if _, err = os.Stat(passwordStoreKeyFile); err != nil {
 		if os.IsNotExist(err) {
 			// create secret key and store it in the secret key file
@@ -122,11 +122,13 @@ func initPWS() error {
 		}
 	}
 
-	for i := range instanceToConfig {
-		fmt.Printf("Enter password for instance %s: ", i)
-		password, _ := term.ReadPassword(0)
-		fmt.Printf("\n")
-		instancePassword[i] = string(password)
+	for instance := range instanceActive {
+		if _, exists := instancePassword[instance]; !exists {
+			fmt.Printf("Enter password for instance %s: ", instance)
+			password, _ := term.ReadPassword(0)
+			fmt.Printf("\n")
+			instancePassword[instance] = string(password)
+		}
 	}
 
 	err = writePasswordStore(os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
@@ -139,10 +141,7 @@ func initPWS() error {
 
 // deleteInstance deletes a dedicated entry from the global instance password map.
 func deleteInstance(instance string) error {
-	err := readPasswordStore()
-	if err != nil {
-		return err
-	}
+	var err error
 	if _, isValid := instancePassword[instance]; !isValid {
 		err = errors.New(mm007)
 		return err
@@ -159,10 +158,7 @@ func deleteInstance(instance string) error {
 
 // addInstance adds a dedicated entry in the global instance password map.
 func addInstance(instance string) error {
-	err := readPasswordStore()
-	if err != nil {
-		return err
-	}
+	var err error
 	if _, isValid := instancePassword[instance]; isValid {
 		err = errors.New(mm008)
 		return err
@@ -184,10 +180,7 @@ func addInstance(instance string) error {
 
 // updateInstance updates a dedicated entry in the global instance password map.
 func updateInstance(instance string) error {
-	err := readPasswordStore()
-	if err != nil {
-		return err
-	}
+	var err error
 	if _, isValid := instancePassword[instance]; !isValid {
 		err = errors.New(mm007)
 		return err
@@ -208,15 +201,25 @@ func updateInstance(instance string) error {
 }
 
 // showInstance lists all instances (without the password) which were found in the global instance password map.
-func showInstance() error {
-	err := readPasswordStore()
-	if err != nil {
-		return err
-	}
-
+func showInstance() {
 	for k := range instancePassword {
 		simplelog.Write(simplelog.STDOUT, k)
 	}
+}
 
-	return err
+// syncPWS synchronizes the password store and the config file.
+// All password store entries, which don't have a corresponding config file instance entry, will be deleted.
+// For all active config file instances, which don't have an entry in the password store yet, their corresponding password will be added to the password store.
+func syncPWS() {
+	for instance := range instancePassword {
+		if _, exists := instanceConfig[instance]; !exists {
+			simplelog.Write(simplelog.STDOUT, formatMsg(mm018, instance))
+			deleteInstance(instance)
+		}
+	}
+	for instance := range instanceActive {
+		if _, exists := instancePassword[instance]; !exists {
+			addInstance(instance)
+		}
+	}
 }
